@@ -355,6 +355,13 @@
 
     .sheet-point.big-pt   { background: #fffbcc; }
     .sheet-point.leak-pt  { background: #f0f8ff; }
+    .sheet-empty {
+      padding: 10px 12px;
+      font-size: 0.8rem;
+      color: var(--gray);
+      text-align: center;
+      border-bottom: 1px solid #f0f0f0;
+    }
 
     .code-us   { color: var(--green-dark); font-weight: 700; }
     .code-them { color: var(--red); font-weight: 700; text-align: right; }
@@ -681,6 +688,8 @@
       <button class="btn btn-xs btn-secondary" onclick="undoLast()">↩ Undo</button>
       <button class="btn btn-xs btn-primary"   onclick="endGame()">End Game →</button>
     </div>
+
+    <div id="recordSheetContent"></div>
   </div>
 </div>
 
@@ -1224,7 +1233,10 @@ function renderAll() {
 function renderRecord() {
   const m = cur();
   if (!m) {
-    show('noMatchState'); hide('matchState'); return;
+    show('noMatchState');
+    hide('matchState');
+    qs('#recordSheetContent').innerHTML = '';
+    return;
   }
   hide('noMatchState'); show('matchState');
 
@@ -1257,6 +1269,52 @@ function renderRecord() {
 
   const g = curGame(m);
   qs('#tennisPts').textContent = fmtPts(g.pp, g.op);
+  renderCurrentGameSheet(m);
+}
+
+function renderCurrentGameSheet(m) {
+  const s = curSet(m);
+  const g = curGame(m);
+  const setNumber = m.sets.length;
+  const gameNumber = s.games.length;
+
+  let html = `<div class="sheet-wrap">
+    <div class="sheet-head">
+      <span>${esc(m.player)}</span>
+      <span>${esc(m.opponent)}</span>
+    </div>
+    <div class="sheet-scroll" id="recordSheetScroll">
+      <div class="sheet-game-sep">Current Game — Set ${setNumber}, Game ${gameNumber}</div>`;
+
+  if (g.points.length === 0) {
+    html += '<div class="sheet-empty">No points recorded in this game yet.</div>';
+  } else {
+    g.points.forEach(pt => {
+      const isBig  = pt.code.includes('*');
+      const cls    = isBig ? 'sheet-point big-pt' : pt.leak ? 'sheet-point leak-pt' : 'sheet-point';
+      const display = pt.leak ? `[${esc(pt.code)}]` : esc(pt.code);
+      html += `<div class="${cls}">`;
+      if (pt.side === 'player') {
+        html += `<span class="code-us">${display}</span><span></span>`;
+      } else {
+        html += `<span></span><span class="code-them">${display}</span>`;
+      }
+      html += '</div>';
+    });
+  }
+
+  if (g.winner) {
+    const winLabel = g.winner === 'player'
+      ? `Game ${esc(m.player.split(' ')[0])}`
+      : `Game ${esc(m.opponent.split(' ')[0])}`;
+    html += `<div class="sheet-game-sep">── ${winLabel} (${g.pp}–${g.op} pts) ──</div>`;
+  }
+
+  html += '</div></div>';
+  qs('#recordSheetContent').innerHTML = html;
+
+  const sb = qs('#recordSheetScroll');
+  if (sb) sb.scrollTop = sb.scrollHeight;
 }
 
 function renderSheet() {
