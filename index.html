@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Tennis Pivot Tracker</title>
+  <style>
+    /* ====================================================
+       VARIABLES & RESET
+    ==================================================== */
+    :root {
+      --green:       #2d6a4f;
+      --green-light: #52b788;
+      --green-dark:  #1b4332;
+      --red:         #c1121f;
+      --blue:        #1d3557;
+      --blue-light:  #457b9d;
+      --amber:       #e07b00;
+      --gray:        #6c757d;
+      --gray-light:  #f0f2f5;
+      --white:       #ffffff;
+      --text:        #1a1a2e;
+      --shadow:      0 2px 10px rgba(0,0,0,0.13);
+      --radius:      10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--gray-light);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      max-width: 600px;
+      margin: 0 auto;
+      min-height: 100vh;
+    }
+
+    /* ====================================================
+       HEADER
+    ==================================================== */
+    header {
+      background: var(--green);
+      color: var(--white);
+      padding: 11px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow);
+    }
+
+    header h1 { font-size: 1rem; font-weight: 700; }
+
+    .header-right { display: flex; gap: 6px; align-items: center; }
+
+    /* ====================================================
+       TABS
+    ==================================================== */
+    .tabs {
+      display: flex;
+      background: var(--white);
+      border-bottom: 1px solid #dde0e6;
+      position: sticky;
+      top: 45px;
+      z-index: 99;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    .tab {
+      flex: 1;
+      padding: 9px 2px 8px;
+      text-align: center;
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: var(--gray);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .tab .tab-icon { font-size: 1.1rem; display: block; margin-bottom: 1px; }
+    .tab.active { color: var(--green); border-bottom-color: var(--green); }
+
+    /* ====================================================
+       SCREENS
+    ==================================================== */
+    .screen { display: none; padding: 12px; flex: 1; }
+    .screen.active { display: block; }
+
+    /* ====================================================
+       BUTTONS
+    ==================================================== */
+    .btn {
+      padding: 11px 14px;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      text-align: center;
+    }
+
+    .btn:active { transform: scale(0.96); opacity: 0.88; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+    .btn-player   { background: var(--green); color: var(--white); }
+    .btn-opponent { background: var(--red);   color: var(--white); }
+    .btn-primary  { background: var(--blue);  color: var(--white); }
+    .btn-secondary{ background: #e4e8ef;      color: var(--text);  }
+    .btn-sm       { padding: 7px 10px; font-size: 0.78rem; border-radius: 7px; }
+    .btn-xs       { padding: 5px 8px;  font-size: 0.72rem; border-radius: 6px; }
+    .btn-full     { width: 100%; display: block; }
+    .btn-header   { background: rgba(255,255,255,0.2); color: var(--white); border: 1px solid rgba(255,255,255,0.4); }
+
+    /* ====================================================
+       CODE BUTTON TOGGLES
+    ==================================================== */
+    .btn-code {
+      padding: 7px 10px;
+      border: 2px solid #dde0e6;
+      border-radius: 7px;
+      background: var(--white);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.12s;
+      color: var(--text);
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.2;
+      text-align: center;
+    }
+
+    .btn-code:active { transform: scale(0.94); }
+
+    .btn-code.sel-blue {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: var(--white);
+    }
+
+    .btn-code.sel-green {
+      border-color: var(--green);
+      background: var(--green);
+      color: var(--white);
+    }
+
+    .btn-code.sel-amber {
+      border-color: var(--amber);
+      background: var(--amber);
+      color: var(--white);
+    }
+
+    /* ====================================================
+       SCORE CARD
+    ==================================================== */
+    .score-card {
+      background: linear-gradient(135deg, var(--blue) 0%, #2a4a70 100%);
+      color: var(--white);
+      border-radius: var(--radius);
+      padding: 14px 16px 12px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow);
+    }
+
+    .match-label   { font-size: 0.72rem; opacity: 0.75; margin-bottom: 8px; text-align: center; }
+
+    .score-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .score-player { text-align: center; }
+    .player-name  { font-size: 0.75rem; opacity: 0.85; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .set-num      { font-size: 3rem; font-weight: 800; line-height: 1; }
+    .game-num     { font-size: 0.8rem; opacity: 0.8; margin-top: 2px; }
+    .score-sep    { font-size: 1.8rem; opacity: 0.45; line-height: 1; }
+
+    .tennis-pts {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255,255,255,0.18);
+      text-align: center;
+      font-size: 0.82rem;
+      opacity: 0.9;
+      font-weight: 600;
+    }
+
+    /* ====================================================
+       POINT ENTRY BUTTONS
+    ==================================================== */
+    .point-btns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    /* ====================================================
+       CODE BUILDER PANEL
+    ==================================================== */
+    .code-builder {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 13px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow);
+    }
+
+    .code-builder.hidden { display: none; }
+
+    .builder-row {
+      margin-bottom: 11px;
+    }
+
+    .builder-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--gray);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 5px;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    /* ====================================================
+       CODE PREVIEW
+    ==================================================== */
+    .code-preview {
+      background: var(--gray-light);
+      border-radius: 7px;
+      padding: 9px 12px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .preview-meta  { font-size: 0.68rem; color: var(--gray); margin-bottom: 2px; }
+    .preview-code  { font-size: 1.3rem; font-weight: 800; font-family: 'Courier New', monospace; letter-spacing: 0.02em; }
+    .preview-side  { font-size: 0.8rem; font-weight: 700; }
+    .preview-player   { color: var(--green); }
+    .preview-opponent { color: var(--red); }
+
+    .record-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    /* ====================================================
+       GAME CONTROLS BAR
+    ==================================================== */
+    .game-bar {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 9px 12px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow);
+      display: flex;
+      gap: 7px;
+      align-items: center;
+    }
+
+    .game-bar-label { font-size: 0.78rem; color: var(--gray); flex: 1; font-weight: 500; }
+
+    /* ====================================================
+       COMPLETE BANNER
+    ==================================================== */
+    .complete-banner {
+      background: var(--green-dark);
+      color: var(--white);
+      border-radius: var(--radius);
+      padding: 11px 14px;
+      margin-bottom: 10px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    /* ====================================================
+       SCORE SHEET
+    ==================================================== */
+    .sheet-wrap {
+      background: var(--white);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      margin-bottom: 10px;
+    }
+
+    .sheet-head {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: var(--blue);
+      color: var(--white);
+      padding: 7px 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .sheet-head span:last-child { text-align: right; }
+
+    .sheet-scroll { max-height: 50vh; overflow-y: auto; }
+
+    .sheet-set-hdr {
+      background: var(--green-dark);
+      color: var(--white);
+      text-align: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      letter-spacing: 0.05em;
+    }
+
+    .sheet-game-sep {
+      background: var(--gray-light);
+      border-top: 2px solid var(--text);
+      border-bottom: 1px solid #ccc;
+      padding: 3px 12px;
+      font-size: 0.72rem;
+      color: var(--gray);
+      font-weight: 600;
+    }
+
+    .sheet-point {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 3px 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.84rem;
+      border-bottom: 1px solid #f0f0f0;
+      min-height: 26px;
+      align-items: center;
+    }
+
+    .sheet-point.big-pt   { background: #fffbcc; }
+    .sheet-point.leak-pt  { background: #f0f8ff; }
+
+    .code-us   { color: var(--green-dark); font-weight: 700; }
+    .code-them { color: var(--red); font-weight: 700; text-align: right; }
+
+    /* ====================================================
+       STATS
+    ==================================================== */
+    .stats-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 13px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow);
+    }
+
+    .stats-title { font-size: 0.88rem; font-weight: 700; color: var(--blue); margin-bottom: 10px; }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 0;
+      border-bottom: 1px solid var(--gray-light);
+      font-size: 0.84rem;
+    }
+
+    .stat-row:last-child { border-bottom: none; }
+    .stat-code { font-family: 'Courier New', monospace; font-weight: 700; }
+    .stat-us   { color: var(--green-dark); font-weight: 700; min-width: 28px; text-align: right; }
+    .stat-them { color: var(--red); font-weight: 700; min-width: 28px; text-align: right; }
+
+    .pattern-card {
+      background: var(--white);
+      border-left: 4px solid var(--amber);
+      border-radius: var(--radius);
+      padding: 13px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow);
+    }
+
+    /* ====================================================
+       MATCH LIST
+    ==================================================== */
+    .match-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 2px solid transparent;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .match-card.current { border-color: var(--green); }
+    .match-card:active  { transform: scale(0.985); }
+    .match-vs   { font-weight: 700; font-size: 0.88rem; }
+    .match-meta { font-size: 0.73rem; color: var(--gray); margin-top: 2px; }
+    .match-score{ font-size: 0.88rem; color: var(--green); font-weight: 700; margin-left: 10px; white-space: nowrap; }
+    .match-done { color: var(--gray); }
+
+    /* ====================================================
+       GUIDE
+    ==================================================== */
+    .guide-section {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 13px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow);
+    }
+
+    .guide-section h3 { font-size: 0.88rem; font-weight: 700; color: var(--blue); margin-bottom: 8px; }
+
+    .code-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .code-table td, .code-table th { padding: 4px 6px; border-bottom: 1px solid var(--gray-light); vertical-align: top; }
+    .code-table th { font-weight: 700; font-size: 0.72rem; color: var(--gray); text-transform: uppercase; letter-spacing: 0.04em; }
+    .code-table td:first-child { font-family: 'Courier New', monospace; font-weight: 700; color: var(--green-dark); white-space: nowrap; }
+    .code-table tr:last-child td { border-bottom: none; }
+
+    /* ====================================================
+       EMPTY STATE
+    ==================================================== */
+    .empty {
+      text-align: center;
+      padding: 36px 20px;
+      color: var(--gray);
+    }
+
+    .empty-icon { font-size: 2.8rem; margin-bottom: 10px; }
+    .empty-text { font-size: 0.88rem; line-height: 1.5; }
+
+    /* ====================================================
+       MODALS
+    ==================================================== */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 200;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--white);
+      border-radius: 14px 14px 0 0;
+      padding: 20px 18px 28px;
+      width: 100%;
+      max-width: 600px;
+      max-height: 92vh;
+      overflow-y: auto;
+    }
+
+    .modal h2 { font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; }
+
+    .form-group { margin-bottom: 12px; }
+    .form-label { display: block; font-size: 0.74rem; font-weight: 700; color: var(--gray); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .form-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 2px solid #dde0e6;
+      border-radius: 7px;
+      font-size: 0.92rem;
+      outline: none;
+      transition: border-color 0.15s;
+      background: var(--white);
+      color: var(--text);
+    }
+
+    .form-input:focus { border-color: var(--blue); }
+
+    .modal-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+    .modal-btns-single { margin-top: 14px; }
+  </style>
+</head>
+<body>
+
+<!-- ============================================================
+     HEADER
+============================================================ -->
+<header>
+  <h1>🎾 Tennis Pivot Tracker</h1>
+  <div class="header-right">
+    <button class="btn btn-sm btn-header" id="newMatchBtn">+ New Match</button>
+  </div>
+</header>
+
+<!-- ============================================================
+     TABS
+============================================================ -->
+<div class="tabs">
+  <div class="tab active" data-tab="record">
+    <span class="tab-icon">📝</span>Record
+  </div>
+  <div class="tab" data-tab="sheet">
+    <span class="tab-icon">📋</span>Sheet
+  </div>
+  <div class="tab" data-tab="stats">
+    <span class="tab-icon">📊</span>Stats
+  </div>
+  <div class="tab" data-tab="guide">
+    <span class="tab-icon">📖</span>Guide
+  </div>
+  <div class="tab" data-tab="matches">
+    <span class="tab-icon">📁</span>Matches
+  </div>
+</div>
+
+<!-- ============================================================
+     SCREEN: RECORD
+============================================================ -->
+<div class="screen active" id="screen-record">
+
+  <!-- No active match -->
+  <div id="noMatchState" class="empty">
+    <div class="empty-icon">🎾</div>
+    <div class="empty-text">No active match.<br>Tap <strong>+ New Match</strong> to begin.</div>
+  </div>
+
+  <!-- Active match -->
+  <div id="matchState" style="display:none">
+
+    <!-- Completed banner -->
+    <div class="complete-banner" id="completeBanner" style="display:none">
+      🏆 Match Complete — <span id="completeBannerText"></span>
+    </div>
+
+    <!-- Score card -->
+    <div class="score-card">
+      <div class="match-label" id="matchLabel">Player vs Opponent</div>
+      <div class="score-row">
+        <div class="score-player">
+          <div class="player-name" id="pName">Player</div>
+          <div class="set-num" id="pSets">0</div>
+          <div class="game-num" id="pGames">0 games</div>
+        </div>
+        <div class="score-sep">–</div>
+        <div class="score-player">
+          <div class="player-name" id="oName">Opponent</div>
+          <div class="set-num" id="oSets">0</div>
+          <div class="game-num" id="oGames">0 games</div>
+        </div>
+      </div>
+      <div class="tennis-pts" id="tennisPts">0 – 0</div>
+    </div>
+
+    <!-- Point buttons -->
+    <div class="point-btns" id="pointBtns">
+      <button class="btn btn-player" id="btnPlayerWon" onclick="startPoint('player')">✅ Player Won</button>
+      <button class="btn btn-opponent" id="btnOppWon" onclick="startPoint('opponent')">❌ Opp Won</button>
+    </div>
+
+    <!-- Code builder (hidden until point started) -->
+    <div class="code-builder hidden" id="codeBuilder">
+
+      <!-- Shot marker -->
+      <div class="builder-row">
+        <div class="builder-label">Shot Marker <span style="font-weight:400;text-transform:none">(optional)</span></div>
+        <div class="btn-group" id="shotGrp">
+          <button class="btn-code" data-shot="F"  onclick="selShot('F')">F<br><small>Fore</small></button>
+          <button class="btn-code" data-shot="B"  onclick="selShot('B')">B<br><small>Back</small></button>
+          <button class="btn-code" data-shot="R"  onclick="selShot('R')">R<br><small>Return</small></button>
+          <button class="btn-code" data-shot="S"  onclick="selShot('S')">S<br><small>Serve</small></button>
+          <button class="btn-code" data-shot="V"  onclick="selShot('V')">V<br><small>Volley</small></button>
+          <button class="btn-code" data-shot="O"  onclick="selShot('O')">O<br><small>Overhead</small></button>
+        </div>
+      </div>
+
+      <!-- Core code -->
+      <div class="builder-row">
+        <div class="builder-label">Core Code</div>
+        <div class="btn-group" id="coreGrp">
+          <button class="btn-code" data-core="A"   onclick="selCore('A')">A<br><small>Ace</small></button>
+          <button class="btn-code" data-core="S+"  onclick="selCore('S+')">S+<br><small>Serve+</small></button>
+          <button class="btn-code" data-core="DF"  onclick="selCore('DF')">DF<br><small>DblFault</small></button>
+          <button class="btn-code" data-core="+1"  onclick="selCore('+1')">+1<br><small>1st Ball</small></button>
+          <button class="btn-code" data-core="S"   onclick="selCore('S')">S–<br><small>Setup Err</small></button>
+          <button class="btn-code" data-core="T"   onclick="selCore('T')">T–<br><small>Tactical</small></button>
+          <button class="btn-code" data-core="N"   onclick="selCore('N')">N–<br><small>Neutral</small></button>
+          <button class="btn-code" data-core="W"   onclick="selCore('W')">W–<br><small>Winner</small></button>
+          <button class="btn-code" data-core="!"   onclick="selCore('!')">!<br><small>Opp Quality</small></button>
+        </div>
+      </div>
+
+      <!-- Zone (shown only when core needs it) -->
+      <div class="builder-row" id="zoneRow" style="display:none">
+        <div class="builder-label">Zone (7ST Map)</div>
+        <div class="btn-group" id="zoneGrp">
+          <button class="btn-code" data-zone="1" onclick="selZone(1)">1<br><small>Short/Danger</small></button>
+          <button class="btn-code" data-zone="2" onclick="selZone(2)">2<br><small>Mid/Neutral</small></button>
+          <button class="btn-code" data-zone="3" onclick="selZone(3)">3<br><small>Deep/Safe</small></button>
+          <button class="btn-code" data-zone="4" onclick="selZone(4)">4<br><small>Short Wide</small></button>
+          <button class="btn-code" data-zone="5" onclick="selZone(5)">5<br><small>Short Wide</small></button>
+          <button class="btn-code" data-zone="6" onclick="selZone(6)">6<br><small>Deep Corner</small></button>
+          <button class="btn-code" data-zone="7" onclick="selZone(7)">7<br><small>Net/Touch</small></button>
+        </div>
+      </div>
+
+      <!-- Modifiers -->
+      <div class="builder-row">
+        <div class="builder-label">Modifiers</div>
+        <div class="btn-group">
+          <button class="btn-code" id="btnBig"  onclick="togBig()">⭐ Big Point *</button>
+          <button class="btn-code" id="btnLeak" onclick="togLeak()">[ ] Leak Run</button>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="code-preview">
+        <div>
+          <div class="preview-meta">Code Preview</div>
+          <div class="preview-code" id="previewCode">—</div>
+        </div>
+        <div class="preview-side" id="previewSide"></div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="record-row">
+        <button class="btn btn-secondary" onclick="cancelPoint()">Cancel</button>
+        <button class="btn btn-primary"   onclick="recordPoint()">Record Point ↩</button>
+      </div>
+    </div>
+
+    <!-- Game control bar -->
+    <div class="game-bar">
+      <span class="game-bar-label">Game actions</span>
+      <button class="btn btn-xs btn-secondary" onclick="undoLast()">↩ Undo</button>
+      <button class="btn btn-xs btn-primary"   onclick="endGame()">End Game →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCREEN: SHEET
+============================================================ -->
+<div class="screen" id="screen-sheet">
+  <div id="sheetNoMatch" class="empty">
+    <div class="empty-icon">📋</div>
+    <div class="empty-text">No active match. Start one to see the score sheet.</div>
+  </div>
+  <div id="sheetContent"></div>
+</div>
+
+<!-- ============================================================
+     SCREEN: STATS
+============================================================ -->
+<div class="screen" id="screen-stats">
+  <div id="statsNoMatch" class="empty">
+    <div class="empty-icon">📊</div>
+    <div class="empty-text">No data yet. Record some points to see statistics.</div>
+  </div>
+  <div id="statsContent"></div>
+</div>
+
+<!-- ============================================================
+     SCREEN: GUIDE
+============================================================ -->
+<div class="screen" id="screen-guide">
+
+  <div class="guide-section">
+    <h3>Core Codes</h3>
+    <table class="code-table">
+      <tr><th>Code</th><th>Meaning</th></tr>
+      <tr><td>A</td><td>Ace / untouched serve</td></tr>
+      <tr><td>S+</td><td>Serve-created point or forced return error</td></tr>
+      <tr><td>DF</td><td>Double fault</td></tr>
+      <tr><td>+1</td><td>Wasted first ball after serve or return</td></tr>
+      <tr><td>S–<em>zone</em></td><td>Setup error: short, attackable ball</td></tr>
+      <tr><td>T–<em>zone</em></td><td>Tactical error: wrong shot, target, or risk</td></tr>
+      <tr><td>N–<em>zone</em></td><td>Good neutralizer / deep reset under pressure</td></tr>
+      <tr><td>W–<em>zone</em></td><td>Won with depth, power, angle, or touch</td></tr>
+      <tr><td>!</td><td>Opponent quality; no clear correction for player</td></tr>
+    </table>
+  </div>
+
+  <div class="guide-section">
+    <h3>Shot Markers (optional prefix)</h3>
+    <table class="code-table">
+      <tr><th>Marker</th><th>Meaning</th></tr>
+      <tr><td>F</td><td>Forehand</td></tr>
+      <tr><td>B</td><td>Backhand</td></tr>
+      <tr><td>R</td><td>Return</td></tr>
+      <tr><td>S</td><td>Serve</td></tr>
+      <tr><td>V</td><td>Volley</td></tr>
+      <tr><td>O</td><td>Overhead</td></tr>
+    </table>
+    <p style="font-size:0.78rem;color:var(--gray);margin-top:6px">
+      Combine with core code using a slash: <strong>F/W-6</strong>, <strong>B/N-3</strong>, <strong>R/+1</strong>
+    </p>
+  </div>
+
+  <div class="guide-section">
+    <h3>7ST Zone Map</h3>
+    <table class="code-table">
+      <tr><th>Zone</th><th>Location</th><th>Example</th></tr>
+      <tr><td>1</td><td>Short / danger zone</td><td>S-1 → Setup error into danger zone</td></tr>
+      <tr><td>2</td><td>Mid / neutral zone</td><td>N-2 → Neutralizer to mid court</td></tr>
+      <tr><td>3</td><td>Deep / safe zone</td><td>N-3 → Deep reset, smart defensive shot</td></tr>
+      <tr><td>4</td><td>Short wide angle</td><td>W-4 → Short angle winner</td></tr>
+      <tr><td>5</td><td>Short wide angle</td><td>W-5 → Short angle winner (other side)</td></tr>
+      <tr><td>6</td><td>Deep corners / weapon zone</td><td>W-6 → Deep corner winner</td></tr>
+      <tr><td>7</td><td>Net / touch zone</td><td>W-7 → Drop shot, volley, or net finish</td></tr>
+    </table>
+  </div>
+
+  <div class="guide-section">
+    <h3>Special Markers</h3>
+    <table class="code-table">
+      <tr><th>Marker</th><th>Meaning</th></tr>
+      <tr><td>*</td><td>Big / momentum point (e.g. F/T-6*)</td></tr>
+      <tr><td>[ ]</td><td>Three-point leak or related run — marks grouped points</td></tr>
+    </table>
+  </div>
+
+  <div class="guide-section">
+    <h3>Recording Priority (during match)</h3>
+    <ol style="font-size:0.82rem;line-height:1.9;padding-left:18px;color:var(--text)">
+      <li>Serve</li>
+      <li>Return</li>
+      <li>+1 shot</li>
+      <li>Short balls given away</li>
+      <li>Wrong tactical choices</li>
+      <li>Good neutralizers</li>
+      <li>Weapons / winners</li>
+    </ol>
+    <p style="font-size:0.78rem;color:var(--gray);margin-top:8px">Do not try to capture everything. Capture the useful coaching signal.</p>
+  </div>
+
+  <div class="guide-section">
+    <h3>Post-Match Rule</h3>
+    <p style="font-size:0.82rem;line-height:1.6">Review only: <strong>One pattern + one action.</strong></p>
+    <table class="code-table" style="margin-top:8px">
+      <tr><th>Pattern</th><th>Action</th></tr>
+      <tr><td>Many F/S-1 errors</td><td>Train forehand rally depth</td></tr>
+      <tr><td>Many +1 errors</td><td>First ball after serve must go deep with margin</td></tr>
+      <tr><td>Many T-6 errors</td><td>Attack only when balanced or inside baseline</td></tr>
+      <tr><td>Many ! marks</td><td>Do not over-coach; opponent earned those points</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCREEN: MATCHES
+============================================================ -->
+<div class="screen" id="screen-matches">
+  <button class="btn btn-primary btn-full" onclick="showNewMatchModal()" style="margin-bottom:12px">+ New Match</button>
+  <div id="matchList"></div>
+</div>
+
+<!-- ============================================================
+     MODAL: NEW MATCH
+============================================================ -->
+<div class="modal-overlay" id="modalNewMatch">
+  <div class="modal">
+    <h2>🎾 New Match</h2>
+    <div class="form-group">
+      <label class="form-label">Our Player Name</label>
+      <input class="form-input" id="inp-player" placeholder="e.g. Alex" type="text" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Opponent Name</label>
+      <input class="form-input" id="inp-opponent" placeholder="e.g. Jamie" type="text" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Date</label>
+      <input class="form-input" id="inp-date" type="date">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Match Format</label>
+      <select class="form-input" id="inp-format">
+        <option value="3">Best of 3 Sets</option>
+        <option value="5">Best of 5 Sets</option>
+        <option value="1">Pro Set (1 Set)</option>
+      </select>
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary"   onclick="createMatch()">Start Match</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: END GAME
+============================================================ -->
+<div class="modal-overlay" id="modalEndGame">
+  <div class="modal">
+    <h2>End Game — Who Won?</h2>
+    <p style="font-size:0.84rem;color:var(--gray);margin-bottom:14px">
+      Select the game winner. The score sheet will record the separator line.
+    </p>
+    <div class="modal-btns">
+      <button class="btn btn-player"   id="endGamePlayerBtn"   onclick="confirmEndGame('player')">✅ Player</button>
+      <button class="btn btn-opponent" id="endGameOpponentBtn" onclick="confirmEndGame('opponent')">❌ Opponent</button>
+    </div>
+    <div class="modal-btns-single">
+      <button class="btn btn-secondary btn-full" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: DELETE CONFIRM
+============================================================ -->
+<div class="modal-overlay" id="modalDelete">
+  <div class="modal">
+    <h2>Delete Match?</h2>
+    <p style="font-size:0.84rem;color:var(--gray);margin-bottom:14px" id="deleteMatchLabel">This will permanently delete the match data.</p>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-opponent"  onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+// Core codes that require a zone suffix
+const ZONE_CODES = new Set(['S', 'T', 'N', 'W']);
+
+const STORAGE_KEY   = 'tpt_matches_v2';
+const STORAGE_ID    = 'tpt_currentId';
+
+// Tennis point labels
+const PTS = ['0', '15', '30', '40'];
+
+// ============================================================
+// STATE
+// ============================================================
+
+let matches = [];
+let currentId = null;
+
+// Builder transient state
+let pending = {
+  side: null,   // 'player' | 'opponent'
+  shot: null,   // 'F'|'B'|'R'|'S'|'V'|'O'
+  core: null,   // 'A'|'S+'|'DF'|'+1'|'S'|'T'|'N'|'W'|'!'
+  zone: null,   // 1-7
+  big:  false,
+  leak: false,
+};
+
+let deleteTargetId = null;
+
+// ============================================================
+// STORAGE
+// ============================================================
+
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(matches));
+    if (currentId) {
+      localStorage.setItem(STORAGE_ID, currentId);
+    } else {
+      localStorage.removeItem(STORAGE_ID);
+    }
+  } catch(e) { /* storage full or unavailable */ }
+}
+
+function load() {
+  try {
+    const m = localStorage.getItem(STORAGE_KEY);
+    if (m) matches = JSON.parse(m);
+    currentId = localStorage.getItem(STORAGE_ID) || null;
+    // Validate currentId
+    if (currentId && !matches.find(x => x.id === currentId)) {
+      currentId = matches.length ? matches[0].id : null;
+    }
+  } catch(e) {
+    matches = [];
+    currentId = null;
+  }
+}
+
+// ============================================================
+// DATA HELPERS
+// ============================================================
+
+function getMatch(id) { return matches.find(m => m.id === (id || currentId)); }
+function cur()        { return getMatch(currentId); }
+function curSet(m)    { return m.sets[m.sets.length - 1]; }
+function curGame(m)   { const s = curSet(m); return s.games[s.games.length - 1]; }
+
+/** Count sets won for each side */
+function setScore(m) {
+  let p = 0, o = 0;
+  m.sets.forEach(s => { if (s.winner === 'player') p++; else if (s.winner === 'opponent') o++; });
+  return { p, o };
+}
+
+/** Count games won in current set (excludes current game if not finished) */
+function gameScore(m) {
+  const s = curSet(m);
+  let p = 0, o = 0;
+  s.games.forEach(g => { if (g.winner === 'player') p++; else if (g.winner === 'opponent') o++; });
+  return { p, o };
+}
+
+/** Format tennis point score */
+function fmtPts(p, o) {
+  if (p < 3 || o < 3) return `${PTS[p]} – ${PTS[o]}`;
+  if (p === o)         return 'Deuce';
+  return p > o ? 'Adv Us' : 'Adv Them';
+}
+
+function newSet()  { return { games: [newGame()], winner: null }; }
+function newGame() { return { points: [], pp: 0, op: 0, winner: null }; }
+
+// ============================================================
+// MATCH CREATION
+// ============================================================
+
+function createMatch() {
+  const player   = qs('#inp-player').value.trim()   || 'Player';
+  const opponent = qs('#inp-opponent').value.trim()  || 'Opponent';
+  const date     = qs('#inp-date').value             || today();
+  const format   = parseInt(qs('#inp-format').value) || 3;
+
+  const m = {
+    id: Date.now().toString(),
+    player, opponent, date, format,
+    status: 'active',
+    sets: [newSet()],
+  };
+
+  matches.unshift(m);
+  currentId = m.id;
+  save();
+  closeModal();
+  switchTab('record');
+  renderAll();
+}
+
+function today() { return new Date().toISOString().slice(0, 10); }
+
+// ============================================================
+// POINT RECORDING
+// ============================================================
+
+function startPoint(side) {
+  if (!cur() || cur().status === 'completed') return;
+  pending = { side, shot: null, core: null, zone: null, big: false, leak: false };
+
+  // Reset UI
+  qsa('#shotGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
+  qsa('#coreGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
+  qsa('#zoneGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
+  qs('#btnBig').classList.remove('sel-amber');
+  qs('#btnLeak').classList.remove('sel-blue');
+  qs('#zoneRow').style.display = 'none';
+  qs('#codeBuilder').classList.remove('hidden');
+  qs('#pointBtns').style.display = 'none';
+  updatePreview();
+}
+
+function cancelPoint() {
+  pending.side = null;
+  qs('#codeBuilder').classList.add('hidden');
+  qs('#pointBtns').style.display = 'grid';
+}
+
+function selShot(s) {
+  if (pending.shot === s) {
+    pending.shot = null;
+    qs(`[data-shot="${s}"]`).classList.remove('sel-blue');
+  } else {
+    qsa('#shotGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
+    pending.shot = s;
+    qs(`[data-shot="${s}"]`).classList.add('sel-blue');
+  }
+  updatePreview();
+}
+
+function selCore(c) {
+  qsa('#coreGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
+  pending.core = c;
+  qs(`[data-core="${CSS.escape(c)}"]`).classList.add('sel-blue');
+
+  const needZone = ZONE_CODES.has(c);
+  qs('#zoneRow').style.display = needZone ? 'block' : 'none';
+  if (!needZone) {
+    pending.zone = null;
+    qsa('#zoneGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
+  }
+  updatePreview();
+}
+
+function selZone(z) {
+  qsa('#zoneGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
+  pending.zone = z;
+  qs(`[data-zone="${z}"]`).classList.add('sel-blue');
+  updatePreview();
+}
+
+function togBig() {
+  pending.big = !pending.big;
+  qs('#btnBig').classList.toggle('sel-amber', pending.big);
+  updatePreview();
+}
+
+function togLeak() {
+  pending.leak = !pending.leak;
+  qs('#btnLeak').classList.toggle('sel-blue', pending.leak);
+  updatePreview();
+}
+
+function buildCode() {
+  if (!pending.core) return '';
+  let c = '';
+  if (pending.shot) c += pending.shot + '/';
+  c += pending.core;
+  if (ZONE_CODES.has(pending.core) && pending.zone) c += '-' + pending.zone;
+  if (pending.big)  c += '*';
+  return c;
+}
+
+function updatePreview() {
+  const code = buildCode();
+  qs('#previewCode').textContent = code || '—';
+  const sideEl = qs('#previewSide');
+  if (pending.side === 'player') {
+    sideEl.textContent = '✅ Player';
+    sideEl.className = 'preview-side preview-player';
+  } else if (pending.side === 'opponent') {
+    sideEl.textContent = '❌ Opponent';
+    sideEl.className = 'preview-side preview-opponent';
+  } else {
+    sideEl.textContent = '';
+    sideEl.className = 'preview-side';
+  }
+}
+
+function recordPoint() {
+  if (!pending.core) { alert('Please select a core code.'); return; }
+
+  const m = cur();
+  if (!m) return;
+  const g = curGame(m);
+
+  const pt = {
+    code: buildCode(),
+    side: pending.side,
+    leak: pending.leak,
+  };
+
+  g.points.push(pt);
+  if (pending.side === 'player') g.pp++; else g.op++;
+
+  save();
+  cancelPoint();
+  renderAll();
+  // Scroll sheet to bottom
+  const sb = qs('.sheet-scroll');
+  if (sb) sb.scrollTop = sb.scrollHeight;
+}
+
+// ============================================================
+// UNDO
+// ============================================================
+
+function undoLast() {
+  const m = cur();
+  if (!m) return;
+  const s = curSet(m);
+  const g = curGame(m);
+
+  if (g.points.length > 0) {
+    const removed = g.points.pop();
+    if (removed.side === 'player') g.pp--; else g.op--;
+  } else if (s.games.length > 1) {
+    // Undo end-of-game: remove current empty game, restore previous
+    s.games.pop();
+    const prev = curGame(m);
+    prev.winner = null;
+    // If set was marked complete, undo that too
+    if (s.winner) { s.winner = null; }
+  } else if (m.sets.length > 1) {
+    // Undo end-of-set: remove current empty set, restore previous
+    m.sets.pop();
+    const prevSet = curSet(m);
+    prevSet.winner = null;
+    const prevGame = curGame(m);
+    prevGame.winner = null;
+    m.status = 'active';
+    m.winner = null;
+  }
+
+  save();
+  renderAll();
+}
+
+// ============================================================
+// END GAME / SET / MATCH
+// ============================================================
+
+function endGame() {
+  const m = cur();
+  if (!m || m.status === 'completed') return;
+  const pn = m.player.split(' ')[0];
+  const on = m.opponent.split(' ')[0];
+  qs('#endGamePlayerBtn').textContent   = `✅ ${pn}`;
+  qs('#endGameOpponentBtn').textContent = `❌ ${on}`;
+  openModal('modalEndGame');
+}
+
+function confirmEndGame(winner) {
+  const m = cur();
+  if (!m) return;
+
+  const s = curSet(m);
+  const g = curGame(m);
+  g.winner = winner;
+
+  // Check set completion
+  const gs = gameScore(m); // computed after game is marked
+  let setWinner = detectSetWinner(gs.p, gs.o);
+
+  if (setWinner) {
+    s.winner = setWinner;
+    const ss = setScore(m);
+    const needed = Math.ceil(m.format / 2);
+
+    if (ss.p >= needed || ss.o >= needed) {
+      m.status  = 'completed';
+      m.winner  = ss.p >= needed ? 'player' : 'opponent';
+    } else {
+      m.sets.push(newSet());
+    }
+  } else {
+    s.games.push(newGame());
+  }
+
+  save();
+  closeModal();
+  renderAll();
+}
+
+function detectSetWinner(p, o) {
+  if (p >= 6 && p - o >= 2) return 'player';
+  if (o >= 6 && o - p >= 2) return 'opponent';
+  if (p === 7)               return 'player';
+  if (o === 7)               return 'opponent';
+  return null;
+}
+
+// ============================================================
+// RENDERING
+// ============================================================
+
+function renderAll() {
+  renderRecord();
+  renderSheet();
+  renderStats();
+  renderMatchList();
+}
+
+function renderRecord() {
+  const m = cur();
+  if (!m) {
+    show('noMatchState'); hide('matchState'); return;
+  }
+  hide('noMatchState'); show('matchState');
+
+  const completed = m.status === 'completed';
+
+  // Complete banner
+  if (completed) {
+    const winnerName = m.winner === 'player' ? m.player : m.opponent;
+    qs('#completeBannerText').textContent = `${winnerName} wins!`;
+    show('completeBanner');
+    qs('#btnPlayerWon').disabled = true;
+    qs('#btnOppWon').disabled    = true;
+  } else {
+    hide('completeBanner');
+    qs('#btnPlayerWon').disabled = false;
+    qs('#btnOppWon').disabled    = false;
+  }
+
+  qs('#matchLabel').textContent    = `${m.player} vs ${m.opponent} — ${m.date}`;
+  qs('#pName').textContent         = m.player.split(' ')[0];
+  qs('#oName').textContent         = m.opponent.split(' ')[0];
+
+  const ss = setScore(m);
+  qs('#pSets').textContent = ss.p;
+  qs('#oSets').textContent = ss.o;
+
+  const gs = gameScore(m);
+  qs('#pGames').textContent = gs.p + ' game' + (gs.p !== 1 ? 's' : '');
+  qs('#oGames').textContent = gs.o + ' game' + (gs.o !== 1 ? 's' : '');
+
+  const g = curGame(m);
+  qs('#tennisPts').textContent = fmtPts(g.pp, g.op);
+}
+
+function renderSheet() {
+  const m = cur();
+  if (!m) {
+    show('sheetNoMatch');
+    qs('#sheetContent').innerHTML = '';
+    return;
+  }
+  hide('sheetNoMatch');
+
+  let html = `<div class="sheet-wrap">
+    <div class="sheet-head">
+      <span>${esc(m.player)}</span>
+      <span>${esc(m.opponent)}</span>
+    </div>
+    <div class="sheet-scroll" id="sheetScroll">`;
+
+  m.sets.forEach((s, si) => {
+    if (si > 0) {
+      html += `<div class="sheet-set-hdr">── Set ${si + 1} ──</div>`;
+    }
+    s.games.forEach((g, gi) => {
+      g.points.forEach(pt => {
+        const isBig  = pt.code.includes('*');
+        const cls    = isBig ? 'sheet-point big-pt' : pt.leak ? 'sheet-point leak-pt' : 'sheet-point';
+        const display = pt.leak ? `[${esc(pt.code)}]` : esc(pt.code);
+        html += `<div class="${cls}">`;
+        if (pt.side === 'player') {
+          html += `<span class="code-us">${display}</span><span></span>`;
+        } else {
+          html += `<span></span><span class="code-them">${display}</span>`;
+        }
+        html += '</div>';
+      });
+      if (g.winner) {
+        const winLabel = g.winner === 'player'
+          ? `Game ${esc(m.player.split(' ')[0])}`
+          : `Game ${esc(m.opponent.split(' ')[0])}`;
+        html += `<div class="sheet-game-sep">── ${winLabel} (${g.pp}–${g.op} pts) ──</div>`;
+      }
+    });
+    if (s.winner) {
+      const sp = s.games.filter(g => g.winner === 'player').length;
+      const so = s.games.filter(g => g.winner === 'opponent').length;
+      html += `<div class="sheet-set-hdr">Score: ${sp}–${so}</div>`;
+    }
+  });
+
+  html += '</div></div>';
+  html += `<button class="btn btn-secondary btn-full" onclick="copySheet()" style="margin-top:8px">📋 Copy Score Sheet</button>`;
+
+  qs('#sheetContent').innerHTML = html;
+  // Scroll to bottom
+  const sb = qs('#sheetScroll');
+  if (sb) sb.scrollTop = sb.scrollHeight;
+}
+
+function renderStats() {
+  const m = cur();
+  if (!m) {
+    show('statsNoMatch');
+    qs('#statsContent').innerHTML = '';
+    return;
+  }
+  hide('statsNoMatch');
+
+  // Gather all points
+  const all = [];
+  m.sets.forEach(s => s.games.forEach(g => all.push(...g.points)));
+
+  if (all.length === 0) {
+    qs('#statsContent').innerHTML = '<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">No points recorded yet.</div></div>';
+    return;
+  }
+
+  const pPts = all.filter(p => p.side === 'player').length;
+  const oPts = all.filter(p => p.side === 'opponent').length;
+  const bigAll  = all.filter(p => p.code.includes('*'));
+  const bigP    = bigAll.filter(p => p.side === 'player').length;
+  const bigO    = bigAll.filter(p => p.side === 'opponent').length;
+  const leakAll = all.filter(p => p.leak);
+  const leakP   = leakAll.filter(p => p.side === 'player').length;
+  const leakO   = leakAll.filter(p => p.side === 'opponent').length;
+  const ss      = setScore(m);
+  const gs      = gameScore(m);
+
+  // Aggregate by base code
+  const counts = {};
+  all.forEach(pt => {
+    const base = baseCode(pt.code);
+    if (!counts[base]) counts[base] = { p: 0, o: 0 };
+    counts[base][pt.side === 'player' ? 'p' : 'o']++;
+  });
+
+  const sorted = Object.entries(counts).sort((a, b) => (b[1].p + b[1].o) - (a[1].p + a[1].o));
+
+  let html = '';
+
+  // Summary
+  html += `<div class="stats-card">
+    <div class="stats-title">Match Summary — ${esc(m.player)} vs ${esc(m.opponent)}</div>`;
+
+  if (m.status === 'completed') {
+    const wn = m.winner === 'player' ? m.player : m.opponent;
+    html += `<div class="stat-row"><span>🏆 Winner</span><span style="font-weight:700">${esc(wn)}</span></div>`;
+  }
+
+  html += `<div class="stat-row">
+    <span>Sets</span>
+    <span><span class="stat-us">${ss.p}</span> – <span class="stat-them">${ss.o}</span></span>
+  </div>
+  <div class="stat-row">
+    <span>Games (current set)</span>
+    <span><span class="stat-us">${gs.p}</span> – <span class="stat-them">${gs.o}</span></span>
+  </div>
+  <div class="stat-row">
+    <span>Total Points</span>
+    <span><span class="stat-us">${pPts}</span> – <span class="stat-them">${oPts}</span></span>
+  </div>
+  <div class="stat-row">
+    <span>⭐ Big Points</span>
+    <span><span class="stat-us">${bigP}</span> – <span class="stat-them">${bigO}</span></span>
+  </div>
+  <div class="stat-row">
+    <span>[ ] Leak Points</span>
+    <span><span class="stat-us">${leakP}</span> – <span class="stat-them">${leakO}</span></span>
+  </div>
+  </div>`;
+
+  // Code breakdown
+  html += `<div class="stats-card">
+    <div class="stats-title">Pivot Code Breakdown</div>
+    <div style="display:grid;grid-template-columns:1fr 52px 52px;gap:4px;font-size:0.68rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;padding:4px 0;border-bottom:2px solid var(--gray-light);margin-bottom:4px">
+      <span>Code</span>
+      <span style="color:var(--green-dark);text-align:right">Us</span>
+      <span style="color:var(--red);text-align:right">Them</span>
+    </div>`;
+
+  sorted.forEach(([code, c]) => {
+    html += `<div class="stat-row" style="display:grid;grid-template-columns:1fr 52px 52px;gap:4px">
+      <span class="stat-code">${esc(code)}</span>
+      <span class="stat-us">${c.p || '—'}</span>
+      <span class="stat-them">${c.o || '—'}</span>
+    </div>`;
+  });
+
+  html += '</div>';
+
+  // Pattern suggestion
+  const topErr = sorted.find(([, c]) => c.p >= 2);
+  if (topErr) {
+    const [code, c] = topErr;
+    html += `<div class="pattern-card">
+      <div class="stats-title">📌 Post-Match Pattern</div>
+      <p style="font-size:0.84rem;margin-bottom:6px">Most frequent for player: <strong>${esc(code)}</strong> (${c.p} times)</p>
+      <p style="font-size:0.78rem;color:var(--gray)">Review: One pattern → One action. Do not try to fix everything at once.</p>
+    </div>`;
+  }
+
+  qs('#statsContent').innerHTML = html;
+}
+
+function renderMatchList() {
+  const el = qs('#matchList');
+  if (matches.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📁</div><div class="empty-text">No matches yet. Tap + New Match to begin.</div></div>';
+    return;
+  }
+
+  let html = '';
+  matches.forEach(m => {
+    const ss = setScore(m);
+    const isActive = m.id === currentId;
+    const done = m.status === 'completed';
+    html += `<div class="match-card${isActive ? ' current' : ''}" onclick="loadMatch('${m.id}')">
+      <div style="flex:1;min-width:0">
+        <div class="match-vs">${esc(m.player)} vs ${esc(m.opponent)}${isActive ? ' 🟢' : ''}</div>
+        <div class="match-meta">${m.date} · Best of ${m.format}${done ? ' · ✓ Complete' : ''}</div>
+      </div>
+      <div class="match-score${done ? ' match-done' : ''}">${ss.p}–${ss.o}</div>
+      <button class="btn btn-xs btn-secondary" onclick="askDelete(event,'${m.id}')" style="margin-left:8px">🗑</button>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+// ============================================================
+// EXPORT
+// ============================================================
+
+function copySheet() {
+  const m = cur();
+  if (!m) return;
+
+  const COL = 24;
+  let txt = `${m.player} vs ${m.opponent} — ${m.date}\n\n`;
+  txt += `${'Our Player'.padEnd(COL)}| Opponent\n`;
+  txt += `${'-'.repeat(COL)}|${'-'.repeat(COL)}\n`;
+
+  m.sets.forEach((s, si) => {
+    if (si > 0) txt += `\n── Set ${si + 1} ──\n`;
+    s.games.forEach(g => {
+      g.points.forEach(pt => {
+        const display = pt.leak ? `[${pt.code}]` : pt.code;
+        if (pt.side === 'player') {
+          txt += `${display.padEnd(COL)}|\n`;
+        } else {
+          txt += `${''.padEnd(COL)}| ${display}\n`;
+        }
+      });
+      if (g.winner) {
+        const wn = g.winner === 'player' ? m.player : m.opponent;
+        txt += `${'-'.repeat(COL)}  Game ${wn}\n`;
+      }
+    });
+    if (s.winner) {
+      const sp = s.games.filter(g => g.winner === 'player').length;
+      const so = s.games.filter(g => g.winner === 'opponent').length;
+      txt += `\nScore: ${sp}–${so}\n`;
+    }
+  });
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt)
+      .then(() => alert('Score sheet copied to clipboard!'))
+      .catch(() => fallbackCopy(txt));
+  } else {
+    fallbackCopy(txt);
+  }
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity  = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try { document.execCommand('copy'); alert('Score sheet copied!'); }
+  catch(e) { alert('Could not copy. Please select and copy manually.'); }
+  document.body.removeChild(ta);
+}
+
+// ============================================================
+// DELETE
+// ============================================================
+
+function askDelete(e, id) {
+  e.stopPropagation();
+  deleteTargetId = id;
+  const m = getMatch(id);
+  qs('#deleteMatchLabel').textContent = `Delete match: ${m.player} vs ${m.opponent} (${m.date})?`;
+  openModal('modalDelete');
+}
+
+function confirmDelete() {
+  if (!deleteTargetId) return;
+  matches = matches.filter(m => m.id !== deleteTargetId);
+  if (currentId === deleteTargetId) {
+    currentId = matches.length ? matches[0].id : null;
+  }
+  deleteTargetId = null;
+  save();
+  closeModal();
+  renderAll();
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+
+function switchTab(id) {
+  qsa('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+  qsa('.screen').forEach(s => s.classList.toggle('active', s.id === `screen-${id}`));
+}
+
+qsa('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+
+function loadMatch(id) {
+  currentId = id;
+  save();
+  renderAll();
+  switchTab('record');
+}
+
+function showNewMatchModal() {
+  qs('#inp-player').value   = '';
+  qs('#inp-opponent').value = '';
+  qs('#inp-date').value     = today();
+  qs('#inp-format').value   = '3';
+  openModal('modalNewMatch');
+}
+
+qs('#newMatchBtn').addEventListener('click', showNewMatchModal);
+
+// ============================================================
+// MODAL HELPERS
+// ============================================================
+
+function openModal(id)  { qs(`#${id}`).classList.add('open'); }
+function closeModal()   { qsa('.modal-overlay').forEach(m => m.classList.remove('open')); }
+
+qsa('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+});
+
+// ============================================================
+// DOM UTILITIES
+// ============================================================
+
+function qs(sel)    { return document.querySelector(sel); }
+function qsa(sel)   { return document.querySelectorAll(sel); }
+function show(id)   { qs(`#${id}`).style.display = 'block'; }
+function hide(id)   { qs(`#${id}`).style.display = 'none'; }
+function esc(s)     { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/** Strip * and zone suffix to get base code for stats aggregation */
+function baseCode(code) {
+  return code.replace('*','').replace(/-\d+/,'');
+}
+
+// ============================================================
+// INIT
+// ============================================================
+
+load();
+renderAll();
+</script>
+</body>
+</html>
