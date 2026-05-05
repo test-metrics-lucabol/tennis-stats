@@ -813,10 +813,10 @@
 <div class="screen" id="screen-matches">
   <button class="btn btn-primary btn-full" onclick="showNewMatchModal()" style="margin-bottom:12px">+ New Match</button>
   <div class="import-export-actions">
-    <button class="btn btn-secondary" onclick="exportAllMatches()" aria-label="Export all matches">⬇ Export All</button>
-    <button class="btn btn-secondary" onclick="chooseImportFile()" aria-label="Import matches">⬆ Import</button>
+    <button class="btn btn-secondary" onclick="exportAllMatches()" aria-label="Export all matches">Export All</button>
+    <button class="btn btn-secondary" onclick="chooseImportFile()" aria-label="Import matches">Import</button>
   </div>
-  <input id="importFile" type="file" accept="application/json,.json" style="display:none" onchange="importMatchesFile(event)" aria-label="Import matches file" tabindex="-1">
+  <input id="importFile" type="file" accept="application/json,.json" style="display:none" onchange="importMatchesFile(event)" aria-label="Import matches file">
   <div id="matchList"></div>
 </div>
 
@@ -1459,7 +1459,7 @@ function renderMatchList() {
       </div>
       <div class="match-score${done ? ' match-done' : ''}">${ss.p}–${ss.o}</div>
       <div class="match-actions">
-        <button class="btn btn-xs btn-secondary" onclick="exportMatch(event,'${m.id}')" aria-label="Export match">⬇ Export</button>
+        <button class="btn btn-xs btn-secondary" onclick="exportMatch(event,'${m.id}')" aria-label="Export match">Export</button>
         <button class="btn btn-xs btn-secondary" onclick="askDelete(event,'${m.id}')">🗑</button>
       </div>
     </div>`;
