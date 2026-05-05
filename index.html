@@ -485,6 +485,18 @@
     .toast.error { background: var(--red); }
     .toast.success { background: var(--green); }
 
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
     /* ====================================================
        MODALS
     ==================================================== */
@@ -689,7 +701,8 @@
       <button class="btn btn-xs btn-primary"   onclick="endGame()">End Game →</button>
     </div>
 
-    <div id="recordSheetContent" role="region" aria-label="Current game score sheet" aria-live="polite" aria-atomic="true"></div>
+    <div id="recordSheetContent" role="region" aria-label="Current game score sheet"></div>
+    <div id="recordSheetStatus" class="sr-only" aria-live="polite"></div>
   </div>
 </div>
 
@@ -1236,6 +1249,7 @@ function renderRecord() {
     show('noMatchState');
     hide('matchState');
     qs('#recordSheetContent').innerHTML = '';
+    qs('#recordSheetStatus').textContent = 'No active match.';
     return;
   }
   hide('noMatchState'); show('matchState');
@@ -1275,13 +1289,15 @@ function renderRecord() {
 function renderCurrentGameSheet(m) {
   const s = curSet(m);
   const g = curGame(m);
+  const setNumber = m.sets.indexOf(s) + 1;
+  const gameNumber = s.games.indexOf(g) + 1;
   let html = `<div class="sheet-wrap">
     <div class="sheet-head">
       <span>${esc(m.player)}</span>
       <span>${esc(m.opponent)}</span>
     </div>
     <div class="sheet-scroll" id="recordSheetScroll">
-      <div class="sheet-game-sep">${esc(currentGameLabel(s, m.sets.length))}</div>`;
+      <div class="sheet-game-sep">${esc(currentGameLabel(setNumber, gameNumber))}</div>`;
 
   if (g.points.length === 0) {
     html += '<div class="sheet-empty">No points recorded in this game yet.</div>';
@@ -1309,6 +1325,8 @@ function renderCurrentGameSheet(m) {
 
   html += '</div></div>';
   qs('#recordSheetContent').innerHTML = html;
+  qs('#recordSheetStatus').textContent =
+    `Current game score sheet updated: ${g.points.length} point${g.points.length === 1 ? '' : 's'} recorded.`;
 
   const sb = qs('#recordSheetScroll');
   if (sb) sb.scrollTop = sb.scrollHeight;
@@ -1633,8 +1651,8 @@ function shortName(name, fallback) {
   const trimmed = String(name || '').trim();
   return trimmed ? trimmed.split(/\s+/)[0] : fallback;
 }
-function currentGameLabel(set, setNumber) {
-  return `Current Game: Set ${setNumber}, Game ${set.games.length}`;
+function currentGameLabel(setNumber, gameNumber) {
+  return `Current Game: Set ${setNumber}, Game ${gameNumber}`;
 }
 
 /** Strip * and zone suffix to get base code for stats aggregation */
