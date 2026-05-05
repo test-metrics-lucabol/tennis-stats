@@ -924,6 +924,7 @@ let pending = {
 };
 
 let deleteTargetId = null;
+let importIdCounter = 0;
 
 // ============================================================
 // STORAGE
@@ -1537,7 +1538,7 @@ function parseImportedMatches(data) {
 function normalizeImportedMatch(m) {
   if (!m || typeof m !== 'object') throw new Error('Import file contains an invalid match');
   const rawId = String(m.id || '');
-  const id = /^[A-Za-z0-9_-]+$/.test(rawId) ? rawId : Date.now() + '-' + Math.random().toString(36).slice(2);
+  const id = /^[A-Za-z0-9_-]+$/.test(rawId) ? rawId : createImportId();
   const date = typeof m.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(m.date) ? m.date : today();
   const normalized = {
     id,
@@ -1593,7 +1594,13 @@ function mergeImportedMatches(imported) {
       matches.unshift(m);
     }
   });
-  if (!currentId || !getMatch(currentId)) currentId = matches[0].id;
+  if (!currentId || !getMatch(currentId)) currentId = matches.length ? matches[0].id : null;
+}
+
+function createImportId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  importIdCounter++;
+  return `${Date.now()}-${importIdCounter}-${Math.random().toString(36).slice(2)}`;
 }
 
 function fileSlug(value) {
