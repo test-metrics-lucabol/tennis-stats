@@ -689,7 +689,7 @@
       <button class="btn btn-xs btn-primary"   onclick="endGame()">End Game →</button>
     </div>
 
-    <div id="recordSheetContent" role="region" aria-label="Current game score sheet"></div>
+    <div id="recordSheetContent" role="region" aria-label="Current game score sheet" aria-live="polite"></div>
   </div>
 </div>
 
@@ -1284,7 +1284,7 @@ function renderCurrentGameSheet(m) {
       <span>${esc(m.opponent)}</span>
     </div>
     <div class="sheet-scroll" id="recordSheetScroll">
-      <div class="sheet-game-sep">Current Game — Set ${setNumber}, Game ${gameNumber}</div>`;
+      <div class="sheet-game-sep">Current Game: Set ${setNumber}, Game ${gameNumber}</div>`;
 
   if (g.points.length === 0) {
     html += '<div class="sheet-empty">No points recorded in this game yet.</div>';
