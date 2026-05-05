@@ -814,9 +814,9 @@
   <button class="btn btn-primary btn-full" onclick="showNewMatchModal()" style="margin-bottom:12px">+ New Match</button>
   <div class="import-export-actions">
     <button class="btn btn-secondary" onclick="exportAllMatches()" aria-label="Export all matches">Export All Matches</button>
-    <button class="btn btn-secondary" onclick="chooseImportFile()" aria-label="Import matches">Import Matches</button>
+    <button class="btn btn-secondary" onclick="chooseImportFile()" aria-label="Import matches" aria-controls="importFile">Import Matches</button>
   </div>
-  <input id="importFile" type="file" accept="application/json,.json" style="display:none" onchange="importMatchesFile(event)" aria-label="Import matches file">
+  <input id="importFile" type="file" accept="application/json,.json" style="display:none" onchange="importMatchesFile(event)">
   <div id="matchList"></div>
 </div>
 
@@ -1652,6 +1652,7 @@ function isValidMatchDate(value) {
 }
 
 function fileSlug(value) {
+  if (!value || !String(value).trim()) return 'player';
   const slug = String(value || 'player').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   if (slug.length === 0) return 'player';
   return slug;
