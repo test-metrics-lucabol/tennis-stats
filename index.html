@@ -355,6 +355,13 @@
 
     .sheet-point.big-pt   { background: #fffbcc; }
     .sheet-point.leak-pt  { background: #f0f8ff; }
+    .sheet-empty {
+      padding: 10px 12px;
+      font-size: 0.8rem;
+      color: var(--gray);
+      text-align: center;
+      border-bottom: 1px solid #f0f0f0;
+    }
 
     .code-us   { color: var(--green-dark); font-weight: 700; }
     .code-them { color: var(--red); font-weight: 700; text-align: right; }
@@ -491,6 +498,18 @@
     }
     .toast.error { background: var(--red); }
     .toast.success { background: var(--green); }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
 
     /* ====================================================
        MODALS
@@ -695,6 +714,9 @@
       <button class="btn btn-xs btn-secondary" onclick="undoLast()">↩ Undo</button>
       <button class="btn btn-xs btn-primary"   onclick="endGame()">End Game →</button>
     </div>
+
+    <div id="recordSheetContent" role="region" aria-label="Current game score sheet"></div>
+    <div id="recordSheetStatus" class="sr-only" aria-live="polite"></div>
   </div>
 </div>
 
@@ -1183,8 +1205,8 @@ function undoLast() {
 function endGame() {
   const m = cur();
   if (!m || m.status === 'completed') return;
-  const pn = m.player.split(' ')[0];
-  const on = m.opponent.split(' ')[0];
+  const pn = shortName(m.player, 'Player');
+  const on = shortName(m.opponent, 'Opponent');
   qs('#endGamePlayerBtn').textContent   = `✅ ${pn}`;
   qs('#endGameOpponentBtn').textContent = `❌ ${on}`;
   openModal('modalEndGame');
@@ -1244,7 +1266,11 @@ function renderAll() {
 function renderRecord() {
   const m = cur();
   if (!m) {
-    show('noMatchState'); hide('matchState'); return;
+    show('noMatchState');
+    hide('matchState');
+    qs('#recordSheetContent').innerHTML = '';
+    updateRecordSheetStatus('No active match.');
+    return;
   }
   hide('noMatchState'); show('matchState');
 
@@ -1264,8 +1290,8 @@ function renderRecord() {
   }
 
   qs('#matchLabel').textContent    = `${m.player} vs ${m.opponent} — ${m.date}`;
-  qs('#pName').textContent         = m.player.split(' ')[0];
-  qs('#oName').textContent         = m.opponent.split(' ')[0];
+  qs('#pName').textContent         = shortName(m.player, 'Player');
+  qs('#oName').textContent         = shortName(m.opponent, 'Opponent');
 
   const ss = setScore(m);
   qs('#pSets').textContent = ss.p;
@@ -1277,6 +1303,54 @@ function renderRecord() {
 
   const g = curGame(m);
   qs('#tennisPts').textContent = fmtPts(g.pp, g.op);
+  renderCurrentGameSheet(m);
+}
+
+function renderCurrentGameSheet(m) {
+  const s = curSet(m);
+  const g = curGame(m);
+  const setNumber = m.sets.indexOf(s) + 1;
+  const gameNumber = s.games.indexOf(g) + 1;
+  let html = `<div class="sheet-wrap">
+    <div class="sheet-head">
+      <span>${esc(m.player)}</span>
+      <span>${esc(m.opponent)}</span>
+    </div>
+    <div class="sheet-scroll" id="recordSheetScroll">
+      <div class="sheet-game-sep">${currentGameLabel(setNumber, gameNumber)}</div>`;
+
+  if (g.points.length === 0) {
+    html += '<div class="sheet-empty">No points recorded in this game yet.</div>';
+  } else {
+    g.points.forEach(pt => {
+      const isBig  = pt.code.includes('*');
+      const cls    = isBig ? 'sheet-point big-pt' : pt.leak ? 'sheet-point leak-pt' : 'sheet-point';
+      const display = pt.leak ? `[${esc(pt.code)}]` : esc(pt.code);
+      html += `<div class="${cls}">`;
+      if (pt.side === 'player') {
+        html += `<span class="code-us">${display}</span><span></span>`;
+      } else {
+        html += `<span></span><span class="code-them">${display}</span>`;
+      }
+      html += '</div>';
+    });
+  }
+
+  if (g.winner) {
+    const winLabel = g.winner === 'player'
+      ? `Game ${esc(shortName(m.player, 'Player'))}`
+      : `Game ${esc(shortName(m.opponent, 'Opponent'))}`;
+    html += `<div class="sheet-game-sep">── ${winLabel} (${g.pp}–${g.op} pts) ──</div>`;
+  }
+
+  html += '</div></div>';
+  qs('#recordSheetContent').innerHTML = html;
+  updateRecordSheetStatus(
+    `Current game score sheet updated: ${g.points.length} point${g.points.length === 1 ? '' : 's'} recorded.`
+  );
+
+  const recordSheetScroll = qs('#recordSheetScroll');
+  if (recordSheetScroll) recordSheetScroll.scrollTop = recordSheetScroll.scrollHeight;
 }
 
 function renderSheet() {
@@ -1314,8 +1388,8 @@ function renderSheet() {
       });
       if (g.winner) {
         const winLabel = g.winner === 'player'
-          ? `Game ${esc(m.player.split(' ')[0])}`
-          : `Game ${esc(m.opponent.split(' ')[0])}`;
+          ? `Game ${esc(shortName(m.player, 'Player'))}`
+          : `Game ${esc(shortName(m.opponent, 'Opponent'))}`;
         html += `<div class="sheet-game-sep">── ${winLabel} (${g.pp}–${g.op} pts) ──</div>`;
       }
     });
@@ -1784,6 +1858,17 @@ function qsa(sel)   { return document.querySelectorAll(sel); }
 function show(id)   { qs(`#${id}`).style.display = 'block'; }
 function hide(id)   { qs(`#${id}`).style.display = 'none'; }
 function esc(s)     { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function shortName(name, fallback) {
+  const trimmed = String(name || '').trim();
+  return trimmed ? trimmed.split(/\s+/)[0] : fallback;
+}
+function currentGameLabel(setNumber, gameNumber) {
+  return `Current Game: Set ${setNumber}, Game ${gameNumber}`;
+}
+function updateRecordSheetStatus(message) {
+  const el = qs('#recordSheetStatus');
+  if (el.textContent !== message) el.textContent = message;
+}
 
 /** Strip * and zone suffix to get base code for stats aggregation */
 function baseCode(code) {
