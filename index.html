@@ -451,6 +451,34 @@
     .empty-text { font-size: 0.88rem; line-height: 1.5; }
 
     /* ====================================================
+       TOAST NOTIFICATION
+    ==================================================== */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--text);
+      color: var(--white);
+      padding: 10px 18px;
+      border-radius: 20px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      z-index: 300;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+      opacity: 0;
+      pointer-events: none;
+      white-space: nowrap;
+      max-width: 90vw;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+    .toast.error { background: var(--red); }
+    .toast.success { background: var(--green); }
+
+    /* ====================================================
        MODALS
     ==================================================== */
     .modal-overlay {
@@ -780,19 +808,19 @@
   <div class="modal">
     <h2>🎾 New Match</h2>
     <div class="form-group">
-      <label class="form-label">Our Player Name</label>
+      <label class="form-label" for="inp-player">Our Player Name</label>
       <input class="form-input" id="inp-player" placeholder="e.g. Alex" type="text" autocomplete="off">
     </div>
     <div class="form-group">
-      <label class="form-label">Opponent Name</label>
+      <label class="form-label" for="inp-opponent">Opponent Name</label>
       <input class="form-input" id="inp-opponent" placeholder="e.g. Jamie" type="text" autocomplete="off">
     </div>
     <div class="form-group">
-      <label class="form-label">Date</label>
+      <label class="form-label" for="inp-date">Date</label>
       <input class="form-input" id="inp-date" type="date">
     </div>
     <div class="form-group">
-      <label class="form-label">Match Format</label>
+      <label class="form-label" for="inp-format">Match Format</label>
       <select class="form-input" id="inp-format">
         <option value="3">Best of 3 Sets</option>
         <option value="5">Best of 5 Sets</option>
@@ -839,6 +867,8 @@
   </div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <script>
 'use strict';
 
@@ -849,8 +879,8 @@
 // Core codes that require a zone suffix
 const ZONE_CODES = new Set(['S', 'T', 'N', 'W']);
 
-const STORAGE_KEY   = 'tpt_matches_v2';
-const STORAGE_ID    = 'tpt_currentId';
+const STORAGE_KEY = 'tennis_pivot_tracker_matches_v2';
+const STORAGE_ID  = 'tennis_pivot_tracker_currentId';
 
 // Tennis point labels
 const PTS = ['0', '15', '30', '40'];
@@ -886,7 +916,7 @@ function save() {
     } else {
       localStorage.removeItem(STORAGE_ID);
     }
-  } catch(e) { /* storage full or unavailable */ }
+  } catch(e) { console.warn('Tennis Pivot Tracker: Failed to save match data to browser storage — your changes may be lost if the page is closed.', e); }
 }
 
 function load() {
@@ -994,11 +1024,13 @@ function cancelPoint() {
 function selShot(s) {
   if (pending.shot === s) {
     pending.shot = null;
-    qs(`[data-shot="${s}"]`).classList.remove('sel-blue');
+    const b = qs(`[data-shot="${s}"]`);
+    if (b) b.classList.remove('sel-blue');
   } else {
     qsa('#shotGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
     pending.shot = s;
-    qs(`[data-shot="${s}"]`).classList.add('sel-blue');
+    const b = qs(`[data-shot="${s}"]`);
+    if (b) b.classList.add('sel-blue');
   }
   updatePreview();
 }
@@ -1006,7 +1038,8 @@ function selShot(s) {
 function selCore(c) {
   qsa('#coreGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
   pending.core = c;
-  qs(`[data-core="${CSS.escape(c)}"]`).classList.add('sel-blue');
+  const btn = qs(`[data-core="${CSS.escape(c)}"]`);
+  if (btn) btn.classList.add('sel-blue');
 
   const needZone = ZONE_CODES.has(c);
   qs('#zoneRow').style.display = needZone ? 'block' : 'none';
@@ -1063,7 +1096,7 @@ function updatePreview() {
 }
 
 function recordPoint() {
-  if (!pending.core) { alert('Please select a core code.'); return; }
+  if (!pending.core) { toast('Select a core code (A, S+, DF, W, etc.) before recording', 'error'); return; }
 
   const m = cur();
   if (!m) return;
@@ -1447,7 +1480,7 @@ function copySheet() {
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(txt)
-      .then(() => alert('Score sheet copied to clipboard!'))
+      .then(() => toast('Score sheet copied to clipboard!', 'success'))
       .catch(() => fallbackCopy(txt));
   } else {
     fallbackCopy(txt);
@@ -1462,8 +1495,8 @@ function fallbackCopy(text) {
   document.body.appendChild(ta);
   ta.focus();
   ta.select();
-  try { document.execCommand('copy'); alert('Score sheet copied!'); }
-  catch(e) { alert('Could not copy. Please select and copy manually.'); }
+  try { document.execCommand('copy'); toast('Score sheet copied!', 'success'); }
+  catch(e) { toast('Copy failed — open the Sheet tab and copy the text manually', 'error'); }
   document.body.removeChild(ta);
 }
 
@@ -1543,6 +1576,21 @@ function esc(s)     { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'
 /** Strip * and zone suffix to get base code for stats aggregation */
 function baseCode(code) {
   return code.replace('*','').replace(/-\d+/,'');
+}
+
+// ============================================================
+// TOAST NOTIFICATIONS
+// ============================================================
+
+let toastTimer = null;
+
+function toast(msg, type) {
+  const el = qs('#toast');
+  el.textContent = msg;
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
 }
 
 // ============================================================
