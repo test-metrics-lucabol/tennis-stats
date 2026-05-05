@@ -419,6 +419,20 @@
     .match-score{ font-size: 0.88rem; color: var(--green); font-weight: 700; margin-left: 10px; white-space: nowrap; }
     .match-done { color: var(--gray); }
 
+    .match-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-left: 8px;
+    }
+
+    .import-export-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
     /* ====================================================
        GUIDE
     ==================================================== */
@@ -798,6 +812,11 @@
 ============================================================ -->
 <div class="screen" id="screen-matches">
   <button class="btn btn-primary btn-full" onclick="showNewMatchModal()" style="margin-bottom:12px">+ New Match</button>
+  <div class="import-export-actions">
+    <button class="btn btn-secondary" onclick="exportAllMatches()">⬇ Export All</button>
+    <button class="btn btn-secondary" onclick="chooseImportFile()">⬆ Import</button>
+  </div>
+  <input id="importFile" type="file" accept="application/json,.json" style="display:none" onchange="importMatchesFile(event)">
   <div id="matchList"></div>
 </div>
 
@@ -1438,7 +1457,10 @@ function renderMatchList() {
         <div class="match-meta">${m.date} · Best of ${m.format}${done ? ' · ✓ Complete' : ''}</div>
       </div>
       <div class="match-score${done ? ' match-done' : ''}">${ss.p}–${ss.o}</div>
-      <button class="btn btn-xs btn-secondary" onclick="askDelete(event,'${m.id}')" style="margin-left:8px">🗑</button>
+      <div class="match-actions">
+        <button class="btn btn-xs btn-secondary" onclick="exportMatch(event,'${m.id}')">⬇ Export</button>
+        <button class="btn btn-xs btn-secondary" onclick="askDelete(event,'${m.id}')">🗑</button>
+      </div>
     </div>`;
   });
   el.innerHTML = html;
@@ -1447,6 +1469,136 @@ function renderMatchList() {
 // ============================================================
 // EXPORT
 // ============================================================
+
+function exportMatch(e, id) {
+  if (e) e.stopPropagation();
+  const m = getMatch(id);
+  if (!m) { toast('Match not found', 'error'); return; }
+  downloadMatchesFile([m], `tennis-match-${fileSlug(m.player)}-vs-${fileSlug(m.opponent)}-${fileSlug(m.date || today())}.json`);
+}
+
+function exportAllMatches() {
+  if (matches.length === 0) { toast('No matches to export', 'error'); return; }
+  downloadMatchesFile(matches, `tennis-matches-${today()}.json`);
+}
+
+function downloadMatchesFile(matchList, filename) {
+  const data = {
+    app: 'Tennis Pivot Tracker',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    matches: matchList,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(matchList.length === 1 ? 'Match exported' : 'All matches exported', 'success');
+}
+
+function chooseImportFile() {
+  const input = qs('#importFile');
+  input.value = '';
+  input.click();
+}
+
+function importMatchesFile(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const imported = parseImportedMatches(JSON.parse(reader.result));
+      mergeImportedMatches(imported);
+      save();
+      renderAll();
+      toast(`Imported ${imported.length} match${imported.length === 1 ? '' : 'es'}`, 'success');
+    } catch (err) {
+      toast(err.message || 'Import failed', 'error');
+    }
+  };
+  reader.onerror = () => toast('Could not read import file', 'error');
+  reader.readAsText(file);
+}
+
+function parseImportedMatches(data) {
+  const rawMatches = Array.isArray(data) ? data : data && Array.isArray(data.matches) ? data.matches : data ? [data] : [];
+  const imported = rawMatches.map(normalizeImportedMatch);
+  if (imported.length === 0) throw new Error('Import file contains no matches');
+  return imported;
+}
+
+function normalizeImportedMatch(m) {
+  if (!m || typeof m !== 'object') throw new Error('Import file contains an invalid match');
+  const rawId = String(m.id || '');
+  const id = /^[A-Za-z0-9_-]+$/.test(rawId) ? rawId : Date.now() + '-' + Math.random().toString(36).slice(2);
+  const date = typeof m.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(m.date) ? m.date : today();
+  const normalized = {
+    id,
+    player: typeof m.player === 'string' && m.player.trim() ? m.player : 'Player',
+    opponent: typeof m.opponent === 'string' && m.opponent.trim() ? m.opponent : 'Opponent',
+    date,
+    format: [1, 3, 5].includes(Number(m.format)) ? Number(m.format) : 3,
+    status: m.status === 'completed' ? 'completed' : 'active',
+    sets: Array.isArray(m.sets) ? m.sets.map(normalizeImportedSet).filter(Boolean) : [],
+  };
+  if (m.winner === 'player' || m.winner === 'opponent') normalized.winner = m.winner;
+  if (normalized.sets.length === 0) throw new Error('Import file contains a match with no sets');
+  return normalized;
+}
+
+function normalizeImportedSet(s) {
+  if (!s || typeof s !== 'object' || !Array.isArray(s.games)) return null;
+  const games = s.games.map(normalizeImportedGame).filter(Boolean);
+  if (games.length === 0) games.push(newGame());
+  return {
+    games,
+    winner: s.winner === 'player' || s.winner === 'opponent' ? s.winner : null,
+  };
+}
+
+function normalizeImportedGame(g) {
+  if (!g || typeof g !== 'object') return null;
+  const points = Array.isArray(g.points) ? g.points.map(normalizeImportedPoint).filter(Boolean) : [];
+  return {
+    points,
+    pp: Math.max(0, Number.isFinite(Number(g.pp)) ? Number(g.pp) : points.filter(p => p.side === 'player').length),
+    op: Math.max(0, Number.isFinite(Number(g.op)) ? Number(g.op) : points.filter(p => p.side === 'opponent').length),
+    winner: g.winner === 'player' || g.winner === 'opponent' ? g.winner : null,
+  };
+}
+
+function normalizeImportedPoint(pt) {
+  if (!pt || typeof pt !== 'object' || typeof pt.code !== 'string') return null;
+  if (pt.side !== 'player' && pt.side !== 'opponent') return null;
+  return {
+    code: pt.code,
+    side: pt.side,
+    leak: !!pt.leak,
+  };
+}
+
+function mergeImportedMatches(imported) {
+  imported.forEach(m => {
+    const idx = matches.findIndex(existing => existing.id === m.id);
+    if (idx >= 0) {
+      matches[idx] = m;
+    } else {
+      matches.unshift(m);
+    }
+  });
+  if (!currentId || !getMatch(currentId)) currentId = matches[0].id;
+}
+
+function fileSlug(value) {
+  return String(value || 'player').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'player';
+}
 
 function copySheet() {
   const m = cur();
