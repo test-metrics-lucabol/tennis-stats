@@ -816,7 +816,7 @@
     <button class="btn btn-secondary" onclick="exportAllMatches()" aria-label="Export all matches">⬇ Export All</button>
     <button class="btn btn-secondary" onclick="chooseImportFile()" aria-label="Import matches">⬆ Import</button>
   </div>
-  <input id="importFile" type="file" accept="application/json,.json" style="display:none" onchange="importMatchesFile(event)">
+  <input id="importFile" type="file" accept="application/json,.json" style="display:none" onchange="importMatchesFile(event)" aria-label="Import matches file">
   <div id="matchList"></div>
 </div>
 
@@ -1530,16 +1530,19 @@ function importMatchesFile(e) {
 
 function parseImportedMatches(data) {
   const rawMatches = Array.isArray(data) ? data : data && Array.isArray(data.matches) ? data.matches : data ? [data] : [];
-  const imported = rawMatches.map(normalizeImportedMatch);
+  const usedIds = new Set();
+  const imported = rawMatches.map(m => normalizeImportedMatch(m, usedIds));
   if (imported.length === 0) throw new Error('Import file contains no matches');
   return imported;
 }
 
-function normalizeImportedMatch(m) {
+function normalizeImportedMatch(m, usedIds) {
   if (!m || typeof m !== 'object') throw new Error('Import file contains an invalid match');
   const rawId = String(m.id || '');
-  const id = /^[A-Za-z0-9_-]+$/.test(rawId) ? rawId : createImportId();
-  const date = typeof m.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(m.date) ? m.date : today();
+  let id = /^[A-Za-z0-9_-]+$/.test(rawId) ? rawId : createImportId(usedIds);
+  if (usedIds.has(id) || matches.some(existing => existing.id === id)) id = createImportId(usedIds);
+  usedIds.add(id);
+  const date = isValidMatchDate(m.date) ? m.date : today();
   const normalized = {
     id,
     player: typeof m.player === 'string' && m.player.trim() ? m.player : 'Player',
@@ -1597,14 +1600,37 @@ function mergeImportedMatches(imported) {
   if (!currentId || !getMatch(currentId)) currentId = matches.length ? matches[0].id : null;
 }
 
-function createImportId() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-  importIdCounter++;
-  return `${Date.now()}-${importIdCounter}-${Math.random().toString(36).slice(2)}`;
+function createImportId(usedIds) {
+  let id = '';
+  do {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      id = crypto.randomUUID();
+    } else {
+      importIdCounter++;
+      id = `${Date.now()}-${importIdCounter}-${importIdEntropy()}`;
+    }
+  } while ((usedIds && usedIds.has(id)) || matches.some(existing => existing.id === id));
+  return id;
+}
+
+function importIdEntropy() {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const values = new Uint32Array(2);
+    crypto.getRandomValues(values);
+    return values[0].toString(36) + values[1].toString(36);
+  }
+  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+}
+
+function isValidMatchDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(value + 'T00:00:00Z');
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
 function fileSlug(value) {
-  return String(value || 'player').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'player';
+  const slug = String(value || 'player').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return slug || 'player';
 }
 
 function copySheet() {
