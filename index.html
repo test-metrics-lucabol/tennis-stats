@@ -689,7 +689,7 @@
       <button class="btn btn-xs btn-primary"   onclick="endGame()">End Game →</button>
     </div>
 
-    <div id="recordSheetContent" role="region" aria-label="Current game score sheet" aria-live="polite"></div>
+    <div id="recordSheetContent" role="region" aria-label="Current game score sheet" aria-live="polite" aria-atomic="true"></div>
   </div>
 </div>
 
@@ -1172,8 +1172,8 @@ function undoLast() {
 function endGame() {
   const m = cur();
   if (!m || m.status === 'completed') return;
-  const pn = m.player.split(' ')[0];
-  const on = m.opponent.split(' ')[0];
+  const pn = shortName(m.player, 'Player');
+  const on = shortName(m.opponent, 'Opponent');
   qs('#endGamePlayerBtn').textContent   = `✅ ${pn}`;
   qs('#endGameOpponentBtn').textContent = `❌ ${on}`;
   openModal('modalEndGame');
@@ -1256,8 +1256,8 @@ function renderRecord() {
   }
 
   qs('#matchLabel').textContent    = `${m.player} vs ${m.opponent} — ${m.date}`;
-  qs('#pName').textContent         = m.player.split(' ')[0];
-  qs('#oName').textContent         = m.opponent.split(' ')[0];
+  qs('#pName').textContent         = shortName(m.player, 'Player');
+  qs('#oName').textContent         = shortName(m.opponent, 'Opponent');
 
   const ss = setScore(m);
   qs('#pSets').textContent = ss.p;
@@ -1275,16 +1275,13 @@ function renderRecord() {
 function renderCurrentGameSheet(m) {
   const s = curSet(m);
   const g = curGame(m);
-  const setNumber = m.sets.length;
-  const gameNumber = s.games.length;
-
   let html = `<div class="sheet-wrap">
     <div class="sheet-head">
       <span>${esc(m.player)}</span>
       <span>${esc(m.opponent)}</span>
     </div>
     <div class="sheet-scroll" id="recordSheetScroll">
-      <div class="sheet-game-sep">Current Game: Set ${setNumber}, Game ${gameNumber}</div>`;
+      <div class="sheet-game-sep">${esc(currentGameLabel(s, m.sets.length))}</div>`;
 
   if (g.points.length === 0) {
     html += '<div class="sheet-empty">No points recorded in this game yet.</div>';
@@ -1305,8 +1302,8 @@ function renderCurrentGameSheet(m) {
 
   if (g.winner) {
     const winLabel = g.winner === 'player'
-      ? `Game ${esc(m.player.split(' ')[0])}`
-      : `Game ${esc(m.opponent.split(' ')[0])}`;
+      ? `Game ${esc(shortName(m.player, 'Player'))}`
+      : `Game ${esc(shortName(m.opponent, 'Opponent'))}`;
     html += `<div class="sheet-game-sep">── ${winLabel} (${g.pp}–${g.op} pts) ──</div>`;
   }
 
@@ -1352,8 +1349,8 @@ function renderSheet() {
       });
       if (g.winner) {
         const winLabel = g.winner === 'player'
-          ? `Game ${esc(m.player.split(' ')[0])}`
-          : `Game ${esc(m.opponent.split(' ')[0])}`;
+          ? `Game ${esc(shortName(m.player, 'Player'))}`
+          : `Game ${esc(shortName(m.opponent, 'Opponent'))}`;
         html += `<div class="sheet-game-sep">── ${winLabel} (${g.pp}–${g.op} pts) ──</div>`;
       }
     });
@@ -1632,6 +1629,13 @@ function qsa(sel)   { return document.querySelectorAll(sel); }
 function show(id)   { qs(`#${id}`).style.display = 'block'; }
 function hide(id)   { qs(`#${id}`).style.display = 'none'; }
 function esc(s)     { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function shortName(name, fallback) {
+  const trimmed = String(name || '').trim();
+  return trimmed ? trimmed.split(/\s+/)[0] : fallback;
+}
+function currentGameLabel(set, setNumber) {
+  return `Current Game: Set ${setNumber}, Game ${set.games.length}`;
+}
 
 /** Strip * and zone suffix to get base code for stats aggregation */
 function baseCode(code) {
