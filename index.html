@@ -702,7 +702,7 @@
     </div>
 
     <div id="recordSheetContent" role="region" aria-label="Current game points"></div>
-    <div id="recordSheetStatus" class="sr-only" aria-live="polite" aria-label="Current game sheet updates"></div>
+    <div id="recordSheetStatus" class="sr-only" aria-live="polite"></div>
   </div>
 </div>
 
@@ -1297,7 +1297,7 @@ function renderCurrentGameSheet(m) {
       <span>${esc(m.opponent)}</span>
     </div>
     <div class="sheet-scroll" id="recordSheetScroll">
-      <div class="sheet-game-sep">${esc(currentGameLabel(setNumber, gameNumber))}</div>`;
+      <div class="sheet-game-sep">${currentGameLabel(setNumber, gameNumber)}</div>`;
 
   if (g.points.length === 0) {
     html += '<div class="sheet-empty">No points recorded in this game yet.</div>';
