@@ -816,7 +816,7 @@
     <button class="btn btn-secondary" onclick="exportAllMatches()" aria-label="Export all matches">⬇ Export All</button>
     <button class="btn btn-secondary" onclick="chooseImportFile()" aria-label="Import matches">⬆ Import</button>
   </div>
-  <input id="importFile" type="file" accept="application/json,.json" style="display:none" onchange="importMatchesFile(event)" aria-label="Import matches file">
+  <input id="importFile" type="file" accept="application/json,.json" style="display:none" onchange="importMatchesFile(event)" aria-label="Import matches file" tabindex="-1">
   <div id="matchList"></div>
 </div>
 
@@ -1475,7 +1475,7 @@ function exportMatch(e, id) {
   if (e) e.stopPropagation();
   const m = getMatch(id);
   if (!m) { toast('Match not found', 'error'); return; }
-  downloadMatchesFile([m], `tennis-match-${fileSlug(m.player)}-vs-${fileSlug(m.opponent)}-${fileSlug(m.date || today())}.json`);
+  downloadMatchesFile([m], createMatchFilename(m));
 }
 
 function exportAllMatches() {
@@ -1500,6 +1500,10 @@ function downloadMatchesFile(matchList, filename) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   toast(matchList.length === 1 ? 'Match exported' : 'All matches exported', 'success');
+}
+
+function createMatchFilename(m) {
+  return `tennis-match-${fileSlug(m.player)}-vs-${fileSlug(m.opponent)}-${fileSlug(m.date || today())}.json`;
 }
 
 function chooseImportFile() {
@@ -1529,19 +1533,23 @@ function importMatchesFile(e) {
 }
 
 function parseImportedMatches(data) {
-  const rawMatches = Array.isArray(data) ? data : data && Array.isArray(data.matches) ? data.matches : data ? [data] : [];
+  const rawMatches = extractImportedMatchList(data);
   const usedIds = new Set();
   const imported = rawMatches.map(m => normalizeImportedMatch(m, usedIds));
   if (imported.length === 0) throw new Error('Import file contains no matches');
   return imported;
 }
 
+function extractImportedMatchList(data) {
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.matches)) return data.matches;
+  if (data) return [data];
+  return [];
+}
+
 function normalizeImportedMatch(m, usedIds) {
   if (!m || typeof m !== 'object') throw new Error('Import file contains an invalid match');
-  const rawId = String(m.id || '');
-  let id = /^[A-Za-z0-9_-]+$/.test(rawId) ? rawId : createImportId(usedIds);
-  if (usedIds.has(id) || matches.some(existing => existing.id === id)) id = createImportId(usedIds);
-  usedIds.add(id);
+  const id = resolveImportedId(m.id, usedIds);
   const date = isValidMatchDate(m.date) ? m.date : today();
   const normalized = {
     id,
@@ -1572,10 +1580,16 @@ function normalizeImportedGame(g) {
   const points = Array.isArray(g.points) ? g.points.map(normalizeImportedPoint).filter(Boolean) : [];
   return {
     points,
-    pp: Math.max(0, Number.isFinite(Number(g.pp)) ? Number(g.pp) : points.filter(p => p.side === 'player').length),
-    op: Math.max(0, Number.isFinite(Number(g.op)) ? Number(g.op) : points.filter(p => p.side === 'opponent').length),
+    pp: validatePointCount(g.pp, points, 'player'),
+    op: validatePointCount(g.op, points, 'opponent'),
     winner: g.winner === 'player' || g.winner === 'opponent' ? g.winner : null,
   };
+}
+
+function validatePointCount(value, points, side) {
+  const count = Number(value);
+  if (Number.isFinite(count)) return Math.max(0, count);
+  return points.filter(p => p.side === side).length;
 }
 
 function normalizeImportedPoint(pt) {
@@ -1598,6 +1612,14 @@ function mergeImportedMatches(imported) {
     }
   });
   if (!currentId || !getMatch(currentId)) currentId = matches.length ? matches[0].id : null;
+}
+
+function resolveImportedId(rawId, usedIds) {
+  const id = String(rawId || '');
+  const canUseId = /^[A-Za-z0-9_-]+$/.test(id) && !usedIds.has(id) && !matches.some(existing => existing.id === id);
+  const resolvedId = canUseId ? id : createImportId(usedIds);
+  usedIds.add(resolvedId);
+  return resolvedId;
 }
 
 function createImportId(usedIds) {
