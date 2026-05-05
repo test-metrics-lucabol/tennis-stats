@@ -419,6 +419,20 @@
     .match-score{ font-size: 0.88rem; color: var(--green); font-weight: 700; margin-left: 10px; white-space: nowrap; }
     .match-done { color: var(--gray); }
 
+    .match-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-left: 8px;
+    }
+
+    .import-export-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
     /* ====================================================
        GUIDE
     ==================================================== */
@@ -798,6 +812,11 @@
 ============================================================ -->
 <div class="screen" id="screen-matches">
   <button class="btn btn-primary btn-full" onclick="showNewMatchModal()" style="margin-bottom:12px">+ New Match</button>
+  <div class="import-export-actions">
+    <button class="btn btn-secondary" onclick="exportAllMatches()" aria-label="Export all matches">Export All Matches</button>
+    <button class="btn btn-secondary" onclick="chooseImportFile()" aria-label="Import matches">Import Matches</button>
+  </div>
+  <input id="importFile" type="file" accept="application/json,.json" style="display:none" onchange="importMatchesFile(event)">
   <div id="matchList"></div>
 </div>
 
@@ -905,6 +924,7 @@ let pending = {
 };
 
 let deleteTargetId = null;
+let importIdCounter = 0;
 
 // ============================================================
 // STORAGE
@@ -1438,7 +1458,10 @@ function renderMatchList() {
         <div class="match-meta">${m.date} · Best of ${m.format}${done ? ' · ✓ Complete' : ''}</div>
       </div>
       <div class="match-score${done ? ' match-done' : ''}">${ss.p}–${ss.o}</div>
-      <button class="btn btn-xs btn-secondary" onclick="askDelete(event,'${m.id}')" style="margin-left:8px">🗑</button>
+      <div class="match-actions">
+        <button class="btn btn-xs btn-secondary" onclick="exportMatch(event,'${m.id}')" aria-label="Export match">Export</button>
+        <button class="btn btn-xs btn-secondary" onclick="askDelete(event,'${m.id}')">🗑</button>
+      </div>
     </div>`;
   });
   el.innerHTML = html;
@@ -1447,6 +1470,193 @@ function renderMatchList() {
 // ============================================================
 // EXPORT
 // ============================================================
+
+function exportMatch(e, id) {
+  if (e) e.stopPropagation();
+  const m = getMatch(id);
+  if (!m) { toast('Match not found', 'error'); return; }
+  downloadMatchesFile([m], createMatchFilename(m));
+}
+
+function exportAllMatches() {
+  if (matches.length === 0) { toast('No matches to export', 'error'); return; }
+  downloadMatchesFile(matches, `tennis-matches-${today()}.json`);
+}
+
+function downloadMatchesFile(matchList, filename) {
+  const data = {
+    app: 'Tennis Pivot Tracker',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    matches: matchList,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(matchList.length === 1 ? 'Match exported' : 'All matches exported', 'success');
+}
+
+function createMatchFilename(m) {
+  return `tennis-match-${fileSlug(m.player)}-vs-${fileSlug(m.opponent)}-${fileSlug(m.date || today())}.json`;
+}
+
+function chooseImportFile() {
+  const input = qs('#importFile');
+  input.value = '';
+  input.click();
+}
+
+function importMatchesFile(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const imported = parseImportedMatches(JSON.parse(reader.result));
+      mergeImportedMatches(imported);
+      save();
+      renderAll();
+      toast(`Imported ${imported.length} match${imported.length === 1 ? '' : 'es'}`, 'success');
+    } catch (err) {
+      toast(err.message || 'Import failed', 'error');
+    }
+  };
+  reader.onerror = () => toast('Could not read import file', 'error');
+  reader.readAsText(file);
+}
+
+function parseImportedMatches(data) {
+  const rawMatches = extractImportedMatchList(data);
+  const usedIds = new Set();
+  const imported = rawMatches.map(m => normalizeImportedMatch(m, usedIds));
+  if (imported.length === 0) throw new Error('Import file contains no matches');
+  return imported;
+}
+
+function extractImportedMatchList(data) {
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.matches)) return data.matches;
+  if (data) return [data];
+  return [];
+}
+
+function normalizeImportedMatch(m, usedIds) {
+  if (!m || typeof m !== 'object') throw new Error('Import file contains an invalid match');
+  const id = resolveImportedId(m.id, usedIds);
+  const date = isValidMatchDate(m.date) ? m.date : today();
+  const normalized = {
+    id,
+    player: typeof m.player === 'string' && m.player.trim() ? m.player : 'Player',
+    opponent: typeof m.opponent === 'string' && m.opponent.trim() ? m.opponent : 'Opponent',
+    date,
+    format: [1, 3, 5].includes(Number(m.format)) ? Number(m.format) : 3,
+    status: m.status === 'completed' ? 'completed' : 'active',
+    sets: Array.isArray(m.sets) ? m.sets.map(normalizeImportedSet).filter(Boolean) : [],
+  };
+  if (m.winner === 'player' || m.winner === 'opponent') normalized.winner = m.winner;
+  if (normalized.sets.length === 0) throw new Error('Import file contains a match with no sets');
+  return normalized;
+}
+
+function normalizeImportedSet(s) {
+  if (!s || typeof s !== 'object' || !Array.isArray(s.games)) return null;
+  const games = s.games.map(normalizeImportedGame).filter(Boolean);
+  if (games.length === 0) games.push(newGame());
+  return {
+    games,
+    winner: s.winner === 'player' || s.winner === 'opponent' ? s.winner : null,
+  };
+}
+
+function normalizeImportedGame(g) {
+  if (!g || typeof g !== 'object') return null;
+  const points = Array.isArray(g.points) ? g.points.map(normalizeImportedPoint).filter(Boolean) : [];
+  return {
+    points,
+    pp: validatePointCount(g.pp, points, 'player'),
+    op: validatePointCount(g.op, points, 'opponent'),
+    winner: g.winner === 'player' || g.winner === 'opponent' ? g.winner : null,
+  };
+}
+
+function validatePointCount(value, points, side) {
+  const count = Number(value);
+  if (Number.isFinite(count)) return Math.max(0, count);
+  return points.filter(p => p.side === side).length;
+}
+
+function normalizeImportedPoint(pt) {
+  if (!pt || typeof pt !== 'object' || typeof pt.code !== 'string') return null;
+  if (pt.side !== 'player' && pt.side !== 'opponent') return null;
+  return {
+    code: pt.code,
+    side: pt.side,
+    leak: !!pt.leak,
+  };
+}
+
+function mergeImportedMatches(imported) {
+  imported.forEach(m => {
+    const idx = matches.findIndex(existing => existing.id === m.id);
+    if (idx >= 0) {
+      matches[idx] = m;
+    } else {
+      matches.unshift(m);
+    }
+  });
+  if (!currentId || !getMatch(currentId)) currentId = matches.length ? matches[0].id : null;
+}
+
+function resolveImportedId(rawId, usedIds) {
+  const id = String(rawId || '');
+  const canUseId = /^[A-Za-z0-9_-]+$/.test(id) && !usedIds.has(id) && !matches.some(existing => existing.id === id);
+  const resolvedId = canUseId ? id : createImportId(usedIds);
+  usedIds.add(resolvedId);
+  return resolvedId;
+}
+
+function createImportId(usedIds) {
+  let id = '';
+  do {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      id = crypto.randomUUID();
+    } else {
+      importIdCounter++;
+      id = `${Date.now()}-${importIdCounter}-${importIdEntropy()}`;
+    }
+  } while ((usedIds && usedIds.has(id)) || matches.some(existing => existing.id === id));
+  return id;
+}
+
+function importIdEntropy() {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const values = new Uint32Array(2);
+    crypto.getRandomValues(values);
+    return values[0].toString(36) + values[1].toString(36);
+  }
+  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+}
+
+function isValidMatchDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+}
+
+function fileSlug(value) {
+  if (!value || !String(value).trim()) return 'player';
+  const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (slug.length === 0) return 'player';
+  return slug;
+}
 
 function copySheet() {
   const m = cur();
