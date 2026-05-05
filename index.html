@@ -876,7 +876,9 @@
 // CONSTANTS
 // ============================================================
 
-// Core codes that require a zone suffix
+// Core codes that require a zone suffix.
+// Values match data-core attributes in the HTML (single letters without dash).
+// buildCode() appends '-' + zone, producing codes like S-1, N-3, W-6, T-7.
 const ZONE_CODES = new Set(['S', 'T', 'N', 'W']);
 
 const STORAGE_KEY = 'tennis_pivot_tracker_matches_v2';
@@ -916,7 +918,7 @@ function save() {
     } else {
       localStorage.removeItem(STORAGE_ID);
     }
-  } catch(e) { console.warn('Tennis Pivot Tracker: Failed to save match data to browser storage — your changes may be lost if the page is closed.', e); }
+  } catch(e) { console.warn('Tennis Pivot Tracker: Failed to save match data to browser storage — your changes may be lost if the page is closed. This usually occurs when browser storage is disabled or the storage quota is exceeded.', e); }
 }
 
 function load() {
@@ -1024,12 +1026,12 @@ function cancelPoint() {
 function selShot(s) {
   if (pending.shot === s) {
     pending.shot = null;
-    const b = qs(`[data-shot="${s}"]`);
+    const b = qs(`[data-shot="${CSS.escape(s)}"]`);
     if (b) b.classList.remove('sel-blue');
   } else {
     qsa('#shotGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
     pending.shot = s;
-    const b = qs(`[data-shot="${s}"]`);
+    const b = qs(`[data-shot="${CSS.escape(s)}"]`);
     if (b) b.classList.add('sel-blue');
   }
   updatePreview();
