@@ -1005,9 +1005,15 @@ function gameScore(m) {
 
 /** Format tennis point score */
 function fmtPts(p, o) {
-  if (p < 3 || o < 3) return `${PTS[p]} – ${PTS[o]}`;
-  if (p === o)         return 'Deuce';
-  return p > o ? 'Adv Us' : 'Adv Them';
+  if (p >= 4 || o >= 4) {
+    if (p - o >= 2) return 'Game Us';
+    if (o - p >= 2) return 'Game Them';
+  }
+  if (p >= 3 && o >= 3) {
+    if (p === o) return 'Deuce';
+    return p > o ? 'Adv Us' : 'Adv Them';
+  }
+  return `${PTS[p]} – ${PTS[o]}`;
 }
 
 function newSet()  { return { games: [newGame()], winner: null }; }
