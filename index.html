@@ -967,12 +967,19 @@ function save() {
 function load() {
   try {
     const m = localStorage.getItem(STORAGE_KEY);
-    if (m) matches = JSON.parse(m);
+    if (m) {
+      const parsed = JSON.parse(m);
+      matches = Array.isArray(parsed) ? parsed : [];
+    } else {
+      matches = [];
+    }
     currentId = localStorage.getItem(STORAGE_ID) || null;
+    const normalized = normalizeStoredMatches();
     // Validate currentId
     if (currentId && !matches.find(x => x.id === currentId)) {
       currentId = matches.length ? matches[0].id : null;
     }
+    if (normalized) save();
   } catch(e) {
     matches = [];
     currentId = null;
@@ -1005,6 +1012,9 @@ function gameScore(m) {
 
 /** Format tennis point score */
 function fmtPts(p, o) {
+  p = normalizePointCount(p);
+  o = normalizePointCount(o);
+
   if (p >= 4 || o >= 4) {
     if (p - o >= 2) return 'Game Us';
     if (o - p >= 2) return 'Game Them';
@@ -1018,6 +1028,48 @@ function fmtPts(p, o) {
 
 function newSet()  { return { games: [newGame()], winner: null }; }
 function newGame() { return { points: [], pp: 0, op: 0, winner: null }; }
+
+function normalizeStoredMatches() {
+  let changed = false;
+  matches.forEach(m => {
+    if (!m || typeof m !== 'object' || !Array.isArray(m.sets)) return;
+    m.sets.forEach(s => {
+      if (!s || typeof s !== 'object' || !Array.isArray(s.games)) return;
+      s.games.forEach(g => {
+        if (g && typeof g === 'object') changed = normalizeGamePointCounts(g) || changed;
+      });
+    });
+  });
+  return changed;
+}
+
+function normalizeGamePointCounts(g) {
+  let changed = false;
+  if (!Array.isArray(g.points)) {
+    g.points = [];
+    changed = true;
+  }
+
+  const pp = validatePointCount(g.pp, g.points, 'player');
+  const op = validatePointCount(g.op, g.points, 'opponent');
+  if (g.pp !== pp) {
+    g.pp = pp;
+    changed = true;
+  }
+  if (g.op !== op) {
+    g.op = op;
+    changed = true;
+  }
+  return changed;
+}
+
+function normalizePointCount(value, fallback = 0) {
+  const count = Number(value);
+  if (Number.isFinite(count)) return Math.max(0, Math.floor(count));
+
+  const fallbackCount = Number(fallback);
+  return Number.isFinite(fallbackCount) ? Math.max(0, Math.floor(fallbackCount)) : 0;
+}
 
 // ============================================================
 // MATCH CREATION
@@ -1152,6 +1204,7 @@ function recordPoint() {
   const m = cur();
   if (!m) return;
   const g = curGame(m);
+  normalizeGamePointCounts(g);
 
   const pt = {
     code: buildCode(),
@@ -1668,9 +1721,7 @@ function normalizeImportedGame(g) {
 }
 
 function validatePointCount(value, points, side) {
-  const count = Number(value);
-  if (Number.isFinite(count)) return Math.max(0, count);
-  return points.filter(p => p.side === side).length;
+  return normalizePointCount(value, points.filter(p => p.side === side).length);
 }
 
 function normalizeImportedPoint(pt) {
