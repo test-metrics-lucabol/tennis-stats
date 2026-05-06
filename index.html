@@ -1026,6 +1026,17 @@ function fmtPts(p, o) {
   return `${PTS[p]} – ${PTS[o]}`;
 }
 
+function detectGameWinner(g) {
+  const p = normalizePointCount(g.pp);
+  const o = normalizePointCount(g.op);
+
+  if (p >= 4 || o >= 4) {
+    if (p - o >= 2) return 'player';
+    if (o - p >= 2) return 'opponent';
+  }
+  return null;
+}
+
 function newSet()  { return { games: [newGame()], winner: null }; }
 function newGame() { return { points: [], pp: 0, op: 0, winner: null }; }
 
@@ -1215,6 +1226,9 @@ function recordPoint() {
   g.points.push(pt);
   if (pending.side === 'player') g.pp++; else g.op++;
 
+  const gameWinner = detectGameWinner(g);
+  if (gameWinner) finishCurrentGame(m, gameWinner);
+
   save();
   cancelPoint();
   renderAll();
@@ -1233,7 +1247,12 @@ function undoLast() {
   const s = curSet(m);
   const g = curGame(m);
 
-  if (g.points.length > 0) {
+  if (g.winner && g.points.length > 0) {
+    g.winner = null;
+    if (s.winner) s.winner = null;
+    m.status = 'active';
+    m.winner = null;
+  } else if (g.points.length > 0) {
     const removed = g.points.pop();
     if (removed.side === 'player') g.pp--; else g.op--;
   } else if (s.games.length > 1) {
@@ -1275,6 +1294,19 @@ function endGame() {
 function confirmEndGame(winner) {
   const m = cur();
   if (!m) return;
+  if (!finishCurrentGame(m, winner)) return;
+
+  save();
+  closeModal();
+  renderAll();
+}
+
+function finishCurrentGame(m, winner) {
+  if (!m || m.status === 'completed') return false;
+  if (winner !== 'player' && winner !== 'opponent') {
+    toast('Choose a game winner', 'error');
+    return false;
+  }
 
   const s = curSet(m);
   const g = curGame(m);
@@ -1299,9 +1331,7 @@ function confirmEndGame(winner) {
     s.games.push(newGame());
   }
 
-  save();
-  closeModal();
-  renderAll();
+  return true;
 }
 
 function detectSetWinner(p, o) {
