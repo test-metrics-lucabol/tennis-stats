@@ -231,6 +231,54 @@
       margin-bottom: 10px;
     }
 
+    .context-bar {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 9px 12px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .context-main {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .context-role {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--blue);
+    }
+
+    .context-pressure {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      min-height: 0;
+    }
+
+    .context-pressure:empty { display: none; }
+
+    .pressure-tag {
+      display: inline-block;
+      background: #fff3cd;
+      color: #7a4a00;
+      border-radius: 999px;
+      padding: 2px 7px;
+      font-size: 0.68rem;
+      font-weight: 800;
+      line-height: 1.35;
+      white-space: nowrap;
+    }
+
+    .context-unknown { color: var(--gray); }
+
     /* ====================================================
        CODE BUILDER PANEL
     ==================================================== */
@@ -283,6 +331,7 @@
     .preview-meta  { font-size: 0.68rem; color: var(--gray); margin-bottom: 2px; }
     .preview-code  { font-size: 1.3rem; font-weight: 800; font-family: 'Courier New', monospace; letter-spacing: 0.02em; }
     .preview-side  { font-size: 0.8rem; font-weight: 700; }
+    .preview-context { font-size: 0.68rem; color: var(--gray); text-align: right; margin-top: 2px; }
     .preview-player   { color: var(--green); }
     .preview-opponent { color: var(--red); }
 
@@ -390,6 +439,8 @@
 
     .code-us   { color: var(--green-dark); font-weight: 700; }
     .code-them { color: var(--red); font-weight: 700; text-align: right; }
+    .point-tags { display: inline-flex; gap: 3px; margin-left: 5px; vertical-align: middle; }
+    .point-tags .pressure-tag { font-size: 0.62rem; padding: 1px 5px; }
 
     /* ====================================================
        STATS
@@ -653,6 +704,14 @@
       </div>
     </div>
 
+    <div class="context-bar" id="contextBar">
+      <div class="context-main">
+        <div class="context-role" id="contextRole">Server unknown</div>
+        <div class="context-pressure" id="contextPressure" aria-label="Point pressure"></div>
+      </div>
+      <button class="btn btn-xs btn-secondary" onclick="swapCurrentServer()">Swap Server</button>
+    </div>
+
     <!-- Point buttons -->
     <div class="point-btns" id="pointBtns">
       <button class="btn btn-player" id="btnPlayerWon" onclick="startPoint('player')">✅ Player Won</button>
@@ -720,7 +779,10 @@
           <div class="preview-meta">Code Preview</div>
           <div class="preview-code" id="previewCode">—</div>
         </div>
-        <div class="preview-side" id="previewSide"></div>
+        <div>
+          <div class="preview-side" id="previewSide"></div>
+          <div class="preview-context" id="previewContext"></div>
+        </div>
       </div>
 
       <!-- Action buttons -->
@@ -825,6 +887,19 @@
   </div>
 
   <div class="guide-section">
+    <h3>Automatic Context</h3>
+    <p style="font-size:0.82rem;line-height:1.6;margin-bottom:8px">
+      This is a player-centric coaching tracker, not a full symmetric match charting system. Capture the most actionable reason the point changed.
+    </p>
+    <table class="code-table">
+      <tr><th>Context</th><th>How it works</th></tr>
+      <tr><td>Server</td><td>Choose the first server once. The app alternates by game; use Swap Server only to correct the current game.</td></tr>
+      <tr><td>Pressure</td><td>Break, game, set, match, deuce, and advantage tags are computed automatically from the score.</td></tr>
+      <tr><td>*</td><td>Still manual: use it for emotional or momentum points that matter beyond the formal score.</td></tr>
+    </table>
+  </div>
+
+  <div class="guide-section">
     <h3>Recording Priority (during match)</h3>
     <ol style="font-size:0.82rem;line-height:1.9;padding-left:18px;color:var(--text)">
       <li>Serve</li>
@@ -888,6 +963,13 @@
         <option value="3">Best of 3 Sets</option>
         <option value="5">Best of 5 Sets</option>
         <option value="1">Pro Set (1 Set)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="inp-first-server">First Server</label>
+      <select class="form-input" id="inp-first-server">
+        <option value="player">Player serves first</option>
+        <option value="opponent">Opponent serves first</option>
       </select>
     </div>
     <div class="modal-btns">
@@ -968,6 +1050,24 @@ const CORE_ALLOWED_SHOTS = {
   '!': ['F', 'B', 'R', 'V', 'O'],
 };
 
+const PRESSURE_LABELS = {
+  match_point: 'Match Point',
+  set_point: 'Set Point',
+  break_point: 'Break Point',
+  game_point: 'Game Point',
+  advantage: 'Advantage',
+  deuce: 'Deuce',
+};
+
+const PRESSURE_SHORT_LABELS = {
+  match_point: 'MP',
+  set_point: 'SP',
+  break_point: 'BP',
+  game_point: 'GP',
+  advantage: 'Adv',
+  deuce: 'Deuce',
+};
+
 const STORAGE_KEY = 'tennis_pivot_tracker_matches_v2';
 const STORAGE_ID  = 'tennis_pivot_tracker_currentId';
 
@@ -1039,6 +1139,8 @@ function getMatch(id) { return matches.find(m => m.id === (id || currentId)); }
 function cur()        { return getMatch(currentId); }
 function curSet(m)    { return m.sets[m.sets.length - 1]; }
 function curGame(m)   { const s = curSet(m); return s.games[s.games.length - 1]; }
+function isSide(value) { return value === 'player' || value === 'opponent'; }
+function otherSide(side) { return side === 'player' ? 'opponent' : side === 'opponent' ? 'player' : null; }
 
 /** Count sets won for each side */
 function setScore(m) {
@@ -1074,7 +1176,10 @@ function fmtPts(p, o) {
 function detectGameWinner(g) {
   const p = normalizePointCount(g.pp);
   const o = normalizePointCount(g.op);
+  return detectGameWinnerFromCounts(p, o);
+}
 
+function detectGameWinnerFromCounts(p, o) {
   if (p >= 4 || o >= 4) {
     if (p - o >= 2) return 'player';
     if (o - p >= 2) return 'opponent';
@@ -1082,19 +1187,35 @@ function detectGameWinner(g) {
   return null;
 }
 
-function newSet()  { return { games: [newGame()], winner: null }; }
-function newGame() { return { points: [], pp: 0, op: 0, winner: null }; }
+function newSet(server = null)  { return { games: [newGame(server)], winner: null }; }
+function newGame(server = null) { return { points: [], pp: 0, op: 0, winner: null, server: isSide(server) ? server : null }; }
 
 function normalizeStoredMatches() {
   let changed = false;
   matches.forEach(m => {
     if (!m || typeof m !== 'object' || !Array.isArray(m.sets)) return;
+    if (!isSide(m.firstServer)) {
+      if (m.firstServer !== null) changed = true;
+      m.firstServer = null;
+    }
     m.sets.forEach(s => {
       if (!s || typeof s !== 'object' || !Array.isArray(s.games)) return;
       s.games.forEach(g => {
-        if (g && typeof g === 'object') changed = normalizeGamePointCounts(g) || changed;
+        if (g && typeof g === 'object') changed = normalizeGame(g) || changed;
       });
     });
+  });
+  return changed;
+}
+
+function normalizeGame(g) {
+  let changed = normalizeGamePointCounts(g);
+  if (!isSide(g.server)) {
+    if (g.server !== null) changed = true;
+    g.server = null;
+  }
+  g.points.forEach(pt => {
+    if (pt && typeof pt === 'object') changed = normalizeStoredPoint(pt) || changed;
   });
   return changed;
 }
@@ -1119,12 +1240,122 @@ function normalizeGamePointCounts(g) {
   return changed;
 }
 
+function normalizeStoredPoint(pt) {
+  let changed = false;
+  if (pt.context !== undefined) {
+    const normalized = normalizePointContextValue(pt.context);
+    if (JSON.stringify(pt.context) !== JSON.stringify(normalized)) {
+      pt.context = normalized;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function normalizePointCount(value, fallback = 0) {
   const count = Number(value);
   if (Number.isFinite(count)) return Math.max(0, Math.floor(count));
 
   const fallbackCount = Number(fallback);
   return Number.isFinite(fallbackCount) ? Math.max(0, Math.floor(fallbackCount)) : 0;
+}
+
+function totalGamesInMatch(m) {
+  return m.sets.reduce((sum, s) => sum + s.games.length, 0);
+}
+
+function nextServerAfterCurrentGame(m) {
+  const g = curGame(m);
+  if (g && isSide(g.server)) return otherSide(g.server);
+  if (!isSide(m.firstServer)) return null;
+  const nextGameIndex = totalGamesInMatch(m);
+  return nextGameIndex % 2 === 0 ? m.firstServer : otherSide(m.firstServer);
+}
+
+function currentPointContext(m, g = curGame(m)) {
+  return buildPointContext(m, g, normalizePointCount(g.pp), normalizePointCount(g.op));
+}
+
+function buildPointContext(m, g, playerPoints, opponentPoints) {
+  const gs = gameScore(m);
+  const ss = setScore(m);
+  const scoreBefore = {
+    playerPoints,
+    opponentPoints,
+    playerGames: gs.p,
+    opponentGames: gs.o,
+    playerSets: ss.p,
+    opponentSets: ss.o,
+  };
+
+  return {
+    server: isSide(g.server) ? g.server : null,
+    scoreBefore,
+    pressure: pressureTagsForScore(m, scoreBefore, g.server),
+  };
+}
+
+function pressureTagsForScore(m, score, server) {
+  const tags = [];
+  const p = normalizePointCount(score.playerPoints);
+  const o = normalizePointCount(score.opponentPoints);
+
+  if (p >= 3 && o >= 3) {
+    tags.push(p === o ? 'deuce' : 'advantage');
+  }
+
+  const gamePointSide = sideThatWouldWinGame(p, o);
+  if (!gamePointSide) return tags;
+
+  if (isSide(server) && otherSide(server) === gamePointSide) tags.push('break_point');
+  tags.push('game_point');
+
+  if (sideWouldWinSet(m, score, gamePointSide)) {
+    tags.unshift('set_point');
+    if (sideWouldWinMatch(m, score, gamePointSide)) tags.unshift('match_point');
+  }
+
+  return Array.from(new Set(tags));
+}
+
+function sideThatWouldWinGame(playerPoints, opponentPoints) {
+  if (detectGameWinnerFromCounts(playerPoints + 1, opponentPoints) === 'player') return 'player';
+  if (detectGameWinnerFromCounts(playerPoints, opponentPoints + 1) === 'opponent') return 'opponent';
+  return null;
+}
+
+function sideWouldWinSet(m, score, side) {
+  const p = normalizePointCount(score.playerGames) + (side === 'player' ? 1 : 0);
+  const o = normalizePointCount(score.opponentGames) + (side === 'opponent' ? 1 : 0);
+  return detectSetWinner(p, o) === side;
+}
+
+function sideWouldWinMatch(m, score, side) {
+  const needed = Math.ceil(m.format / 2);
+  const setsWon = normalizePointCount(side === 'player' ? score.playerSets : score.opponentSets) + 1;
+  return setsWon >= needed;
+}
+
+function normalizePointContextValue(context) {
+  if (!context || typeof context !== 'object') return null;
+  const score = context.scoreBefore && typeof context.scoreBefore === 'object' ? context.scoreBefore : {};
+  return {
+    server: isSide(context.server) ? context.server : null,
+    scoreBefore: {
+      playerPoints: normalizePointCount(score.playerPoints),
+      opponentPoints: normalizePointCount(score.opponentPoints),
+      playerGames: normalizePointCount(score.playerGames),
+      opponentGames: normalizePointCount(score.opponentGames),
+      playerSets: normalizePointCount(score.playerSets),
+      opponentSets: normalizePointCount(score.opponentSets),
+    },
+    pressure: normalizePressureList(context.pressure),
+  };
+}
+
+function normalizePressureList(value) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.filter(tag => Object.prototype.hasOwnProperty.call(PRESSURE_LABELS, tag))));
 }
 
 // ============================================================
@@ -1136,12 +1367,13 @@ function createMatch() {
   const opponent = qs('#inp-opponent').value.trim()  || 'Opponent';
   const date     = qs('#inp-date').value             || today();
   const format   = parseInt(qs('#inp-format').value) || 3;
+  const firstServer = qs('#inp-first-server').value === 'opponent' ? 'opponent' : 'player';
 
   const m = {
     id: Date.now().toString(),
-    player, opponent, date, format,
+    player, opponent, date, format, firstServer,
     status: 'active',
-    sets: [newSet()],
+    sets: [newSet(firstServer)],
   };
 
   matches.unshift(m);
@@ -1275,6 +1507,7 @@ function updatePreview() {
   const code = buildCode();
   qs('#previewCode').textContent = code || '—';
   const sideEl = qs('#previewSide');
+  const contextEl = qs('#previewContext');
   if (pending.side === 'player') {
     sideEl.textContent = '✅ Player';
     sideEl.className = 'preview-side preview-player';
@@ -1285,6 +1518,7 @@ function updatePreview() {
     sideEl.textContent = '';
     sideEl.className = 'preview-side';
   }
+  contextEl.textContent = pending.side ? pointContextSummary(cur()) : '';
 }
 
 function recordPoint() {
@@ -1299,11 +1533,13 @@ function recordPoint() {
   if (!m) return;
   const g = curGame(m);
   normalizeGamePointCounts(g);
+  const context = currentPointContext(m, g);
 
   const pt = {
     code: buildCode(),
     side: pending.side,
     leak: pending.leak,
+    context,
   };
 
   g.points.push(pt);
@@ -1394,6 +1630,7 @@ function finishCurrentGame(m, winner) {
   const s = curSet(m);
   const g = curGame(m);
   g.winner = winner;
+  const nextServer = nextServerAfterCurrentGame(m);
 
   // Check set completion
   const gs = gameScore(m); // computed after game is marked
@@ -1408,10 +1645,10 @@ function finishCurrentGame(m, winner) {
       m.status  = 'completed';
       m.winner  = ss.p >= needed ? 'player' : 'opponent';
     } else {
-      m.sets.push(newSet());
+      m.sets.push(newSet(nextServer));
     }
   } else {
-    s.games.push(newGame());
+    s.games.push(newGame(nextServer));
   }
 
   return true;
@@ -1474,7 +1711,23 @@ function renderRecord() {
 
   const g = curGame(m);
   qs('#tennisPts').textContent = fmtPts(g.pp, g.op);
+  renderPointContext(m);
   renderCurrentGameSheet(m);
+}
+
+function renderPointContext(m) {
+  const ctx = currentPointContext(m);
+  const serverName = ctx.server === 'player' ? shortName(m.player, 'Player')
+    : ctx.server === 'opponent' ? shortName(m.opponent, 'Opponent')
+    : 'Unknown';
+  const role = ctx.server === 'player' ? 'Serving'
+    : ctx.server === 'opponent' ? 'Returning'
+    : 'Server unknown';
+
+  const roleEl = qs('#contextRole');
+  roleEl.textContent = ctx.server ? `${role}: ${serverName}` : role;
+  roleEl.classList.toggle('context-unknown', !ctx.server);
+  qs('#contextPressure').innerHTML = pressureTagHtml(ctx.pressure, false);
 }
 
 function renderCurrentGameSheet(m) {
@@ -1497,11 +1750,12 @@ function renderCurrentGameSheet(m) {
       const isBig  = pt.code.includes('*');
       const cls    = isBig ? 'sheet-point big-pt' : pt.leak ? 'sheet-point leak-pt' : 'sheet-point';
       const display = pt.leak ? `[${esc(pt.code)}]` : esc(pt.code);
+      const tags = pressureTagHtml(pt.context && pt.context.pressure, true);
       html += `<div class="${cls}">`;
       if (pt.side === 'player') {
-        html += `<span class="code-us">${display}</span><span></span>`;
+        html += `<span class="code-us">${display}${tags}</span><span></span>`;
       } else {
-        html += `<span></span><span class="code-them">${display}</span>`;
+        html += `<span></span><span class="code-them">${display}${tags}</span>`;
       }
       html += '</div>';
     });
@@ -1549,11 +1803,12 @@ function renderSheet() {
         const isBig  = pt.code.includes('*');
         const cls    = isBig ? 'sheet-point big-pt' : pt.leak ? 'sheet-point leak-pt' : 'sheet-point';
         const display = pt.leak ? `[${esc(pt.code)}]` : esc(pt.code);
+        const tags = pressureTagHtml(pt.context && pt.context.pressure, true);
         html += `<div class="${cls}">`;
         if (pt.side === 'player') {
-          html += `<span class="code-us">${display}</span><span></span>`;
+          html += `<span class="code-us">${display}${tags}</span><span></span>`;
         } else {
-          html += `<span></span><span class="code-them">${display}</span>`;
+          html += `<span></span><span class="code-them">${display}${tags}</span>`;
         }
         html += '</div>';
       });
@@ -1609,15 +1864,23 @@ function renderStats() {
   const ss      = setScore(m);
   const gs      = gameScore(m);
 
-  // Aggregate by base code
-  const counts = {};
-  all.forEach(pt => {
-    const base = baseCode(pt.code);
-    if (!counts[base]) counts[base] = { p: 0, o: 0 };
-    counts[base][pt.side === 'player' ? 'p' : 'o']++;
-  });
-
-  const sorted = Object.entries(counts).sort((a, b) => (b[1].p + b[1].o) - (a[1].p + a[1].o));
+  const servePts = all.filter(pt => pointServer(pt) === 'player');
+  const returnPts = all.filter(pt => pointServer(pt) === 'opponent');
+  const unknownServerPts = all.filter(pt => !pointServer(pt));
+  const pressurePts = all.filter(pt => pointPressure(pt).length > 0);
+  const breakServePts = pressurePts.filter(pt => pointServer(pt) === 'player' && hasPressure(pt, 'break_point'));
+  const breakReturnPts = pressurePts.filter(pt => pointServer(pt) === 'opponent' && hasPressure(pt, 'break_point'));
+  const playerGameSetMatchPts = pressurePts.filter(pt =>
+    ['game_point', 'set_point', 'match_point'].some(tag => hasPressure(pt, tag))
+  );
+  const fullCounts = countPointsByCode(all, codeForStats);
+  const groupedCounts = countPointsByCode(all, baseCode);
+  const sorted = sortCodeCounts(fullCounts);
+  const groupedSorted = sortCodeCounts(groupedCounts);
+  const lostPatterns = sortCodeCounts(countPointsByCode(all.filter(pt => pt.side === 'opponent'), codeForStats));
+  const topServeLoss = topCodeFor(servePts.filter(pt => pt.side === 'opponent'));
+  const topReturnLoss = topCodeFor(returnPts.filter(pt => pt.side === 'opponent'));
+  const topPressure = topCodeFor(pressurePts);
 
   let html = '';
 
@@ -1652,7 +1915,34 @@ function renderStats() {
   </div>
   </div>`;
 
-  // Code breakdown
+  html += `<div class="stats-card">
+    <div class="stats-title">Serve / Return</div>
+    ${statRecordRow('Player service points', servePts)}
+    ${statRecordRow('Player return points', returnPts)}
+    ${unknownServerPts.length ? `<div class="stat-row"><span>Unknown server context</span><span>${unknownServerPts.length}</span></div>` : ''}
+    <div class="stat-row"><span>Most common lost pivot on serve</span><span class="stat-code">${esc(topServeLoss || '—')}</span></div>
+    <div class="stat-row"><span>Most common lost pivot on return</span><span class="stat-code">${esc(topReturnLoss || '—')}</span></div>
+  </div>`;
+
+  html += `<div class="stats-card">
+    <div class="stats-title">Pressure Points</div>
+    ${statRecordRow('Break points saved', breakServePts)}
+    ${statRecordRow('Break points converted', breakReturnPts)}
+    ${statRecordRow('Game / set / match points', playerGameSetMatchPts)}
+    <div class="stat-row"><span>Most common pressure pivot</span><span class="stat-code">${esc(topPressure || '—')}</span></div>
+  </div>`;
+
+  if (lostPatterns.length > 0) {
+    html += `<div class="pattern-card">
+      <div class="stats-title">📌 Actionable Patterns</div>`;
+    lostPatterns.slice(0, 3).forEach(([code, c]) => {
+      html += `<div class="stat-row"><span class="stat-code">${esc(code)}</span><span>${c.o} lost</span></div>`;
+    });
+    html += `<p style="font-size:0.78rem;color:var(--gray);margin-top:8px">Review: One pattern → One action. Zones are preserved here, so F/S-1 and F/S-3 stay separate.</p>
+    </div>`;
+  }
+
+  // Zone-preserving code breakdown
   html += `<div class="stats-card">
     <div class="stats-title">Pivot Code Breakdown</div>
     <div style="display:grid;grid-template-columns:1fr 52px 52px;gap:4px;font-size:0.68rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;padding:4px 0;border-bottom:2px solid var(--gray-light);margin-bottom:4px">
@@ -1671,15 +1961,17 @@ function renderStats() {
 
   html += '</div>';
 
-  // Pattern suggestion
-  const topErr = sorted.find(([, c]) => c.p >= 2);
-  if (topErr) {
-    const [code, c] = topErr;
-    html += `<div class="pattern-card">
-      <div class="stats-title">📌 Post-Match Pattern</div>
-      <p style="font-size:0.84rem;margin-bottom:6px">Most frequent for player: <strong>${esc(code)}</strong> (${c.p} times)</p>
-      <p style="font-size:0.78rem;color:var(--gray)">Review: One pattern → One action. Do not try to fix everything at once.</p>
-    </div>`;
+  if (groupedSorted.some(([code]) => groupedCounts[code] && fullCounts[code] === undefined)) {
+    html += `<div class="stats-card">
+      <div class="stats-title">Grouped Codes</div>`;
+    groupedSorted.forEach(([code, c]) => {
+      html += `<div class="stat-row" style="display:grid;grid-template-columns:1fr 52px 52px;gap:4px">
+        <span class="stat-code">${esc(code)}</span>
+        <span class="stat-us">${c.p || '—'}</span>
+        <span class="stat-them">${c.o || '—'}</span>
+      </div>`;
+    });
+    html += '</div>';
   }
 
   qs('#statsContent').innerHTML = html;
@@ -1802,6 +2094,7 @@ function normalizeImportedMatch(m, usedIds) {
     opponent: typeof m.opponent === 'string' && m.opponent.trim() ? m.opponent : 'Opponent',
     date,
     format: [1, 3, 5].includes(Number(m.format)) ? Number(m.format) : 3,
+    firstServer: isSide(m.firstServer) ? m.firstServer : null,
     status: m.status === 'completed' ? 'completed' : 'active',
     sets: Array.isArray(m.sets) ? m.sets.map(normalizeImportedSet).filter(Boolean) : [],
   };
@@ -1828,6 +2121,7 @@ function normalizeImportedGame(g) {
     pp: validatePointCount(g.pp, points, 'player'),
     op: validatePointCount(g.op, points, 'opponent'),
     winner: g.winner === 'player' || g.winner === 'opponent' ? g.winner : null,
+    server: isSide(g.server) ? g.server : null,
   };
 }
 
@@ -1842,6 +2136,7 @@ function normalizeImportedPoint(pt) {
     code: pt.code,
     side: pt.side,
     leak: !!pt.leak,
+    context: normalizePointContextValue(pt.context),
   };
 }
 
@@ -1914,7 +2209,9 @@ function copySheet() {
     if (si > 0) txt += `\n── Set ${si + 1} ──\n`;
     s.games.forEach(g => {
       g.points.forEach(pt => {
-        const display = pt.leak ? `[${pt.code}]` : pt.code;
+        const tags = pressureTextTags(pt.context && pt.context.pressure);
+        const codeText = pt.leak ? `[${pt.code}]` : pt.code;
+        const display = tags ? `${codeText} ${tags}` : codeText;
         if (pt.side === 'player') {
           txt += `${display.padEnd(COL)}|\n`;
         } else {
@@ -1953,6 +2250,26 @@ function fallbackCopy(text) {
   try { document.execCommand('copy'); toast('Score sheet copied!', 'success'); }
   catch(e) { toast('Copy failed — open the Sheet tab and copy the text manually', 'error'); }
   document.body.removeChild(ta);
+}
+
+function swapCurrentServer() {
+  const m = cur();
+  if (!m || m.status === 'completed') return;
+  const g = curGame(m);
+  g.server = isSide(g.server) ? otherSide(g.server) : 'player';
+  refreshCurrentGameContexts(m, g);
+  save();
+  renderAll();
+  toast(`Current game server: ${g.server === 'player' ? shortName(m.player, 'Player') : shortName(m.opponent, 'Opponent')}`, 'success');
+}
+
+function refreshCurrentGameContexts(m, g) {
+  let pp = 0;
+  let op = 0;
+  g.points.forEach(pt => {
+    pt.context = buildPointContext(m, g, pp, op);
+    if (pt.side === 'player') pp++; else op++;
+  });
 }
 
 // ============================================================
@@ -2002,6 +2319,7 @@ function showNewMatchModal() {
   qs('#inp-opponent').value = '';
   qs('#inp-date').value     = today();
   qs('#inp-format').value   = '3';
+  qs('#inp-first-server').value = 'player';
   openModal('modalNewMatch');
 }
 
@@ -2039,9 +2357,77 @@ function updateRecordSheetStatus(message) {
   if (el.textContent !== message) el.textContent = message;
 }
 
+function pointContextSummary(m) {
+  if (!m) return '';
+  const ctx = currentPointContext(m);
+  const role = ctx.server === 'player' ? 'serving point'
+    : ctx.server === 'opponent' ? 'returning point'
+    : 'server unknown';
+  const labels = pressureLabels(ctx.pressure).map(label => label.toLowerCase());
+  return [role, ...labels].join(' · ');
+}
+
+function pressureLabels(pressure, short = false) {
+  const labels = short ? PRESSURE_SHORT_LABELS : PRESSURE_LABELS;
+  return normalizePressureList(pressure).map(tag => labels[tag]).filter(Boolean);
+}
+
+function pressureTagHtml(pressure, short) {
+  const labels = pressureLabels(pressure, short);
+  if (labels.length === 0) return '';
+  const html = labels.map(label => `<span class="pressure-tag">${esc(label)}</span>`).join('');
+  return short ? `<span class="point-tags">${html}</span>` : html;
+}
+
+function pressureTextTags(pressure) {
+  const labels = pressureLabels(pressure, true);
+  return labels.length ? labels.join('/') : '';
+}
+
 /** Strip * and zone suffix to get base code for stats aggregation */
 function baseCode(code) {
-  return code.replace('*','').replace(/-\d+/,'');
+  return codeForStats(code).replace(/-\d+/,'');
+}
+
+function codeForStats(code) {
+  return String(code || '').replace('*','');
+}
+
+function pointServer(pt) {
+  return pt && pt.context && isSide(pt.context.server) ? pt.context.server : null;
+}
+
+function pointPressure(pt) {
+  return pt && pt.context ? normalizePressureList(pt.context.pressure) : [];
+}
+
+function hasPressure(pt, tag) {
+  return pointPressure(pt).includes(tag);
+}
+
+function countPointsByCode(points, codeFn) {
+  const counts = {};
+  points.forEach(pt => {
+    const code = codeFn(pt.code);
+    if (!counts[code]) counts[code] = { p: 0, o: 0 };
+    counts[code][pt.side === 'player' ? 'p' : 'o']++;
+  });
+  return counts;
+}
+
+function sortCodeCounts(counts) {
+  return Object.entries(counts).sort((a, b) => (b[1].p + b[1].o) - (a[1].p + a[1].o));
+}
+
+function topCodeFor(points) {
+  const sorted = sortCodeCounts(countPointsByCode(points, codeForStats));
+  return sorted.length ? sorted[0][0] : null;
+}
+
+function statRecordRow(label, points) {
+  const won = points.filter(pt => pt.side === 'player').length;
+  const lost = points.length - won;
+  return `<div class="stat-row"><span>${esc(label)}</span><span><span class="stat-us">${won}</span> – <span class="stat-them">${lost}</span></span></div>`;
 }
 
 // ============================================================
