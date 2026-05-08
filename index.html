@@ -263,6 +263,10 @@
       gap: 5px;
     }
 
+    .btn-group .btn-code[hidden] {
+      display: none;
+    }
+
     /* ====================================================
        CODE PREVIEW
     ==================================================== */
@@ -660,7 +664,7 @@
 
       <!-- Shot marker -->
       <div class="builder-row">
-        <div class="builder-label">Shot Marker <span style="font-weight:400;text-transform:none">(optional)</span></div>
+        <div class="builder-label">Shot Marker <span style="font-weight:400;text-transform:none">(required)</span></div>
         <div class="btn-group" id="shotGrp">
           <button class="btn-code" data-shot="F"  onclick="selShot('F')">F<br><small>Fore</small></button>
           <button class="btn-code" data-shot="B"  onclick="selShot('B')">B<br><small>Back</small></button>
@@ -672,7 +676,7 @@
       </div>
 
       <!-- Core code -->
-      <div class="builder-row">
+      <div class="builder-row" id="coreRow" hidden>
         <div class="builder-label">Core Code</div>
         <div class="btn-group" id="coreGrp">
           <button class="btn-code" data-core="A"   onclick="selCore('A')">A<br><small>Ace</small></button>
@@ -683,7 +687,7 @@
           <button class="btn-code" data-core="T"   onclick="selCore('T')">T–<br><small>Tactical</small></button>
           <button class="btn-code" data-core="N"   onclick="selCore('N')">N–<br><small>Neutral</small></button>
           <button class="btn-code" data-core="W"   onclick="selCore('W')">W–<br><small>Winner</small></button>
-          <button class="btn-code" data-core="!"   onclick="selCore('!')">!<br><small>Opp Quality</small></button>
+          <button class="btn-code" data-core="!"   onclick="selCore('!')">!<br><small>No Fix</small></button>
         </div>
       </div>
 
@@ -777,12 +781,12 @@
       <tr><td>T–<em>zone</em></td><td>Tactical error: wrong shot, target, or risk</td></tr>
       <tr><td>N–<em>zone</em></td><td>Good neutralizer / deep reset under pressure</td></tr>
       <tr><td>W–<em>zone</em></td><td>Won with depth, power, angle, or touch</td></tr>
-      <tr><td>!</td><td>Opponent quality; no clear correction for player</td></tr>
+      <tr><td>!</td><td>Opponent quality/giveaway; no clear correction for player</td></tr>
     </table>
   </div>
 
   <div class="guide-section">
-    <h3>Shot Markers (optional prefix)</h3>
+    <h3>Shot Markers (required prefix)</h3>
     <table class="code-table">
       <tr><th>Marker</th><th>Meaning</th></tr>
       <tr><td>F</td><td>Forehand</td></tr>
@@ -793,7 +797,7 @@
       <tr><td>O</td><td>Overhead</td></tr>
     </table>
     <p style="font-size:0.78rem;color:var(--gray);margin-top:6px">
-      Combine with core code using a slash: <strong>F/W-6</strong>, <strong>B/N-3</strong>, <strong>R/+1</strong>
+      Choose a shot marker before selecting the core code. Serve (<strong>S</strong>) only pairs with serve codes; <strong>+1</strong> is only for forehand, backhand, or return.
     </p>
   </div>
 
@@ -842,7 +846,7 @@
       <tr><td>Many F/S-1 errors</td><td>Train forehand rally depth</td></tr>
       <tr><td>Many +1 errors</td><td>First ball after serve must go deep with margin</td></tr>
       <tr><td>Many T-6 errors</td><td>Attack only when balanced or inside baseline</td></tr>
-      <tr><td>Many ! marks</td><td>Do not over-coach; opponent earned those points</td></tr>
+      <tr><td>Many ! marks</td><td>Do not over-coach; no clear player correction</td></tr>
     </table>
   </div>
 </div>
@@ -939,6 +943,30 @@
 // Values match data-core attributes in the HTML (single letters without dash).
 // buildCode() appends '-' + zone, producing codes like S-1, N-3, W-6, T-7.
 const ZONE_CODES = new Set(['S', 'T', 'N', 'W']);
+
+const CORE_ALLOWED_POINT_WINNERS = {
+  A: ['player'],
+  'S+': ['player'],
+  DF: ['opponent'],
+  '+1': ['player', 'opponent'],
+  S: ['player', 'opponent'],
+  T: ['player', 'opponent'],
+  N: ['player', 'opponent'],
+  W: ['player'],
+  '!': ['player', 'opponent'],
+};
+
+const CORE_ALLOWED_SHOTS = {
+  A: ['S'],
+  'S+': ['S'],
+  DF: ['S'],
+  '+1': ['F', 'B', 'R'],
+  S: ['F', 'B', 'R', 'V', 'O'],
+  T: ['F', 'B', 'R', 'V', 'O'],
+  N: ['F', 'B', 'R', 'V', 'O'],
+  W: ['F', 'B', 'R', 'V', 'O'],
+  '!': ['F', 'B', 'R', 'V', 'O'],
+};
 
 const STORAGE_KEY = 'tennis_pivot_tracker_matches_v2';
 const STORAGE_ID  = 'tennis_pivot_tracker_currentId';
@@ -1130,6 +1158,30 @@ function today() { return new Date().toISOString().slice(0, 10); }
 // POINT RECORDING
 // ============================================================
 
+function isCoreCodeAllowed(code, pointWinner, shot) {
+  const allowedWinners = CORE_ALLOWED_POINT_WINNERS[code];
+  const winnerAllowed = !allowedWinners || allowedWinners.includes(pointWinner);
+  const allowedShots = CORE_ALLOWED_SHOTS[code];
+  const shotAllowed = !!shot && (!allowedShots || allowedShots.includes(shot));
+  return winnerAllowed && shotAllowed;
+}
+
+function applyCoreCodeVisibility() {
+  qs('#coreRow').hidden = !pending.shot;
+  qsa('#coreGrp .btn-code').forEach(btn => {
+    const core = btn.dataset.core;
+    btn.hidden = !pending.shot || !isCoreCodeAllowed(core, pending.side, pending.shot);
+  });
+}
+
+function clearCoreSelection() {
+  pending.core = null;
+  pending.zone = null;
+  qsa('#coreGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
+  qsa('#zoneGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
+  qs('#zoneRow').style.display = 'none';
+}
+
 function startPoint(side) {
   if (!cur() || cur().status === 'completed') return;
   pending = { side, shot: null, core: null, zone: null, big: false, leak: false };
@@ -1141,6 +1193,7 @@ function startPoint(side) {
   qs('#btnBig').classList.remove('sel-amber');
   qs('#btnLeak').classList.remove('sel-blue');
   qs('#zoneRow').style.display = 'none';
+  applyCoreCodeVisibility();
   qs('#codeBuilder').classList.remove('hidden');
   qs('#pointBtns').style.display = 'none';
   updatePreview();
@@ -1153,20 +1206,28 @@ function cancelPoint() {
 }
 
 function selShot(s) {
-  if (pending.shot === s) {
-    pending.shot = null;
-    const b = qs(`[data-shot="${CSS.escape(s)}"]`);
-    if (b) b.classList.remove('sel-blue');
-  } else {
-    qsa('#shotGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
-    pending.shot = s;
-    const b = qs(`[data-shot="${CSS.escape(s)}"]`);
+  const nextShot = pending.shot === s ? null : s;
+  qsa('#shotGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
+  pending.shot = nextShot;
+  if (pending.shot) {
+    const b = qs(`[data-shot="${CSS.escape(pending.shot)}"]`);
     if (b) b.classList.add('sel-blue');
   }
+  if (pending.core && !isCoreCodeAllowed(pending.core, pending.side, pending.shot)) clearCoreSelection();
+  applyCoreCodeVisibility();
   updatePreview();
 }
 
 function selCore(c) {
+  if (!pending.shot) {
+    toast('Select a shot marker before choosing a core code', 'error');
+    return;
+  }
+  if (pending.side && !isCoreCodeAllowed(c, pending.side, pending.shot)) {
+    toast('This code is not available for the selected shot and point winner', 'error');
+    return;
+  }
+
   qsa('#coreGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
   pending.core = c;
   const btn = qs(`[data-core="${CSS.escape(c)}"]`);
@@ -1227,7 +1288,12 @@ function updatePreview() {
 }
 
 function recordPoint() {
+  if (!pending.shot) { toast('Select a shot marker before recording', 'error'); return; }
   if (!pending.core) { toast('Select a core code (A, S+, DF, W, etc.) before recording', 'error'); return; }
+  if (pending.side && !isCoreCodeAllowed(pending.core, pending.side, pending.shot)) {
+    toast('Selected code does not match the shot and point winner', 'error');
+    return;
+  }
 
   const m = cur();
   if (!m) return;
