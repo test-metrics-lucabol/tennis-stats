@@ -731,6 +731,7 @@
           <button class="btn-code" data-shot="S"  onclick="selShot('S')">S<br><small>Serve</small></button>
           <button class="btn-code" data-shot="V"  onclick="selShot('V')">V<br><small>Volley</small></button>
           <button class="btn-code" data-shot="O"  onclick="selShot('O')">O<br><small>Overhead</small></button>
+          <button class="btn-code" data-shot="!"  onclick="selShot('!')">!<br><small>No Fix</small></button>
         </div>
       </div>
 
@@ -747,7 +748,16 @@
           <button class="btn-code" data-core="T"   onclick="selCore('T')">T–<br><small>Tactical</small></button>
           <button class="btn-code" data-core="N"   onclick="selCore('N')">N–<br><small>Neutral</small></button>
           <button class="btn-code" data-core="W"   onclick="selCore('W')">W–<br><small>Winner</small></button>
-          <button class="btn-code" data-core="!"   onclick="selCore('!')">!<br><small>No Fix</small></button>
+        </div>
+      </div>
+
+      <!-- Error detail (shown only for UE) -->
+      <div class="builder-row" id="errorRow" style="display:none">
+        <div class="builder-label">Unforced Error Detail</div>
+        <div class="btn-group" id="errorGrp">
+          <button class="btn-code" data-error="N" onclick="selError('N')">N<br><small>Net</small></button>
+          <button class="btn-code" data-error="W" onclick="selError('W')">W<br><small>Wide</small></button>
+          <button class="btn-code" data-error="L" onclick="selError('L')">L<br><small>Long</small></button>
         </div>
       </div>
 
@@ -839,13 +849,12 @@
       <tr><td>A</td><td>Ace / untouched serve</td></tr>
       <tr><td>S+</td><td>Serve-created point or forced return error</td></tr>
       <tr><td>DF</td><td>Double fault</td></tr>
-      <tr><td>UE</td><td>Unforced error by player; opponent won without forcing pressure</td></tr>
+      <tr><td>UE-N/W/L</td><td>Unforced error by player into the net, wide, or long</td></tr>
       <tr><td>+1</td><td>Wasted first ball after serve or return</td></tr>
       <tr><td>S–<em>zone</em></td><td>Setup error: short, attackable ball</td></tr>
       <tr><td>T–<em>zone</em></td><td>Tactical error: wrong shot, target, or risk</td></tr>
       <tr><td>N–<em>zone</em></td><td>Good neutralizer / deep reset under pressure</td></tr>
       <tr><td>W–<em>zone</em></td><td>Won with depth, power, angle, or touch</td></tr>
-      <tr><td>!</td><td>Opponent quality/giveaway; no clear correction for player</td></tr>
     </table>
   </div>
 
@@ -859,9 +868,10 @@
       <tr><td>S</td><td>Serve</td></tr>
       <tr><td>V</td><td>Volley</td></tr>
       <tr><td>O</td><td>Overhead</td></tr>
+      <tr><td>!</td><td>Opponent quality/giveaway; no clear correction for player. Record directly without a core code.</td></tr>
     </table>
     <p style="font-size:0.78rem;color:var(--gray);margin-top:6px">
-      Choose a shot marker before selecting the core code. Serve (<strong>S</strong>) only pairs with serve codes; <strong>+1</strong> is only for forehand, backhand, or return.
+      Choose a shot marker before selecting the core code. Serve (<strong>S</strong>) only pairs with serve codes; <strong>+1</strong> is only for forehand, backhand, or return; <strong>UE</strong> opens Net, Wide, and Long details.
     </p>
   </div>
 
@@ -1027,6 +1037,8 @@
 // Values match data-core attributes in the HTML (single letters without dash).
 // buildCode() appends '-' + zone, producing codes like S-1, N-3, W-6, T-7.
 const ZONE_CODES = new Set(['S', 'T', 'N', 'W']);
+const ERROR_DETAIL_CODES = new Set(['UE']);
+const SHOT_ONLY_CODES = new Set(['!']);
 
 const CORE_ALLOWED_POINT_WINNERS = {
   A: ['player'],
@@ -1051,7 +1063,6 @@ const CORE_ALLOWED_SHOTS = {
   T: ['F', 'B', 'R', 'V', 'O'],
   N: ['F', 'B', 'R', 'V', 'O'],
   W: ['F', 'B', 'R', 'V', 'O'],
-  '!': ['F', 'B', 'R', 'V', 'O'],
 };
 
 const PRESSURE_LABELS = {
@@ -1088,9 +1099,10 @@ let currentId = null;
 // Builder transient state
 let pending = {
   side: null,   // 'player' | 'opponent'
-  shot: null,   // 'F'|'B'|'R'|'S'|'V'|'O'
-  core: null,   // 'A'|'S+'|'DF'|'+1'|'S'|'T'|'N'|'W'|'!'
+  shot: null,   // 'F'|'B'|'R'|'S'|'V'|'O'|'!'
+  core: null,   // 'A'|'S+'|'DF'|'UE'|'+1'|'S'|'T'|'N'|'W'|'!'
   zone: null,   // 1-7
+  error: null,  // 'N'|'W'|'L' for UE details
   big:  false,
   leak: false,
 };
@@ -1403,32 +1415,38 @@ function isCoreCodeAllowed(code, pointWinner, shot) {
 }
 
 function applyCoreCodeVisibility() {
-  qs('#coreRow').hidden = !pending.shot;
+  const showCore = !!pending.shot && !SHOT_ONLY_CODES.has(pending.shot);
+  qs('#coreRow').hidden = !showCore;
   qsa('#coreGrp .btn-code').forEach(btn => {
     const core = btn.dataset.core;
-    btn.hidden = !pending.shot || !isCoreCodeAllowed(core, pending.side, pending.shot);
+    btn.hidden = !showCore || !isCoreCodeAllowed(core, pending.side, pending.shot);
   });
 }
 
 function clearCoreSelection() {
   pending.core = null;
   pending.zone = null;
+  pending.error = null;
   qsa('#coreGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
   qsa('#zoneGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
+  qsa('#errorGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
   qs('#zoneRow').style.display = 'none';
+  qs('#errorRow').style.display = 'none';
 }
 
 function startPoint(side) {
   if (!cur() || cur().status === 'completed') return;
-  pending = { side, shot: null, core: null, zone: null, big: false, leak: false };
+  pending = { side, shot: null, core: null, zone: null, error: null, big: false, leak: false };
 
   // Reset UI
   qsa('#shotGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
   qsa('#coreGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
   qsa('#zoneGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
+  qsa('#errorGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
   qs('#btnBig').classList.remove('sel-amber');
   qs('#btnLeak').classList.remove('sel-blue');
   qs('#zoneRow').style.display = 'none';
+  qs('#errorRow').style.display = 'none';
   applyCoreCodeVisibility();
   qs('#codeBuilder').classList.remove('hidden');
   qs('#pointBtns').style.display = 'none';
@@ -1445,11 +1463,16 @@ function selShot(s) {
   const nextShot = pending.shot === s ? null : s;
   qsa('#shotGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
   pending.shot = nextShot;
+  if (pending.shot === '!') {
+    clearCoreSelection();
+    pending.core = '!';
+  } else if (pending.core === '!' || (pending.core && !isCoreCodeAllowed(pending.core, pending.side, pending.shot))) {
+    clearCoreSelection();
+  }
   if (pending.shot) {
     const b = qs(`[data-shot="${CSS.escape(pending.shot)}"]`);
     if (b) b.classList.add('sel-blue');
   }
-  if (pending.core && !isCoreCodeAllowed(pending.core, pending.side, pending.shot)) clearCoreSelection();
   applyCoreCodeVisibility();
   updatePreview();
 }
@@ -1470,10 +1493,16 @@ function selCore(c) {
   if (btn) btn.classList.add('sel-blue');
 
   const needZone = ZONE_CODES.has(c);
+  const needError = ERROR_DETAIL_CODES.has(c);
   qs('#zoneRow').style.display = needZone ? 'block' : 'none';
+  qs('#errorRow').style.display = needError ? 'block' : 'none';
   if (!needZone) {
     pending.zone = null;
     qsa('#zoneGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
+  }
+  if (!needError) {
+    pending.error = null;
+    qsa('#errorGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
   }
   updatePreview();
 }
@@ -1482,6 +1511,13 @@ function selZone(z) {
   qsa('#zoneGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
   pending.zone = z;
   qs(`[data-zone="${z}"]`).classList.add('sel-blue');
+  updatePreview();
+}
+
+function selError(e) {
+  qsa('#errorGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
+  pending.error = e;
+  qs(`[data-error="${e}"]`).classList.add('sel-blue');
   updatePreview();
 }
 
@@ -1499,10 +1535,12 @@ function togLeak() {
 
 function buildCode() {
   if (!pending.core) return '';
+  if (pending.core === '!') return pending.big ? '!*' : '!';
   let c = '';
   if (pending.shot) c += pending.shot + '/';
   c += pending.core;
   if (ZONE_CODES.has(pending.core) && pending.zone) c += '-' + pending.zone;
+  if (ERROR_DETAIL_CODES.has(pending.core) && pending.error) c += '-' + pending.error;
   if (pending.big)  c += '*';
   return c;
 }
@@ -1528,6 +1566,10 @@ function updatePreview() {
 function recordPoint() {
   if (!pending.shot) { toast('Select a shot marker before recording', 'error'); return; }
   if (!pending.core) { toast('Select a core code (A, S+, DF, UE, W, etc.) before recording', 'error'); return; }
+  if (ERROR_DETAIL_CODES.has(pending.core) && !pending.error) {
+    toast('Select how the unforced error missed: Net, Wide, or Long', 'error');
+    return;
+  }
   if (pending.side && !isCoreCodeAllowed(pending.core, pending.side, pending.shot)) {
     toast('Selected code does not match the shot and point winner', 'error');
     return;
@@ -1724,9 +1766,7 @@ function renderPointContext(m) {
   const serverName = ctx.server === 'player' ? shortName(m.player, 'Player')
     : ctx.server === 'opponent' ? shortName(m.opponent, 'Opponent')
     : 'Unknown';
-  const role = ctx.server === 'player' ? 'Serving'
-    : ctx.server === 'opponent' ? 'Returning'
-    : 'Server unknown';
+  const role = ctx.server ? 'Serving' : 'Server unknown';
 
   const roleEl = qs('#contextRole');
   roleEl.textContent = ctx.server ? `${role}: ${serverName}` : role;
@@ -1878,9 +1918,7 @@ function renderStats() {
     ['game_point', 'set_point', 'match_point'].some(tag => hasPressure(pt, tag))
   );
   const fullCounts = countPointsByCode(all, codeForStats);
-  const groupedCounts = countPointsByCode(all, baseCode);
   const sorted = sortCodeCounts(fullCounts);
-  const groupedSorted = sortCodeCounts(groupedCounts);
   const lostPatterns = sortCodeCounts(countPointsByCode(all.filter(pt => pt.side === 'opponent'), codeForStats));
   const topServeLoss = topCodeFor(servePts.filter(pt => pt.side === 'opponent'));
   const topReturnLoss = topCodeFor(returnPts.filter(pt => pt.side === 'opponent'));
@@ -1964,19 +2002,6 @@ function renderStats() {
   });
 
   html += '</div>';
-
-  if (groupedSorted.some(([code]) => groupedCounts[code] && fullCounts[code] === undefined)) {
-    html += `<div class="stats-card">
-      <div class="stats-title">Grouped Codes</div>`;
-    groupedSorted.forEach(([code, c]) => {
-      html += `<div class="stat-row" style="display:grid;grid-template-columns:1fr 52px 52px;gap:4px">
-        <span class="stat-code">${esc(code)}</span>
-        <span class="stat-us">${c.p || '—'}</span>
-        <span class="stat-them">${c.o || '—'}</span>
-      </div>`;
-    });
-    html += '</div>';
-  }
 
   qs('#statsContent').innerHTML = html;
 }
@@ -2364,8 +2389,8 @@ function updateRecordSheetStatus(message) {
 function pointContextSummary(m) {
   if (!m) return '';
   const ctx = currentPointContext(m);
-  const role = ctx.server === 'player' ? 'serving point'
-    : ctx.server === 'opponent' ? 'returning point'
+  const role = ctx.server === 'player' ? `${shortName(m.player, 'Player')} serving`
+    : ctx.server === 'opponent' ? `${shortName(m.opponent, 'Opponent')} serving`
     : 'server unknown';
   const labels = pressureLabels(ctx.pressure).map(label => label.toLowerCase());
   return [role, ...labels].join(' · ');
@@ -2386,11 +2411,6 @@ function pressureTagHtml(pressure, short) {
 function pressureTextTags(pressure) {
   const labels = pressureLabels(pressure, true);
   return labels.length ? labels.join('/') : '';
-}
-
-/** Strip * and zone suffix to get base code for stats aggregation */
-function baseCode(code) {
-  return codeForStats(code).replace(/-\d+/,'');
 }
 
 function codeForStats(code) {
