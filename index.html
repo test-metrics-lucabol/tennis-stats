@@ -185,6 +185,15 @@
       text-overflow: ellipsis;
     }
 
+    .scorebug-context {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 2px;
+      min-height: 18px;
+    }
+
     .scorebug-points {
       margin-top: 2px;
       text-align: center;
@@ -231,29 +240,12 @@
       margin-bottom: 10px;
     }
 
-    .context-bar {
-      background: var(--white);
-      border-radius: var(--radius);
-      padding: 9px 12px;
-      margin-bottom: 10px;
-      box-shadow: var(--shadow);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-
-    .context-main {
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-
     .context-role {
-      font-size: 0.82rem;
-      font-weight: 700;
-      color: var(--blue);
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: var(--white);
+      opacity: 0.95;
+      white-space: nowrap;
     }
 
     .context-pressure {
@@ -261,6 +253,7 @@
       flex-wrap: wrap;
       gap: 4px;
       min-height: 0;
+      justify-content: flex-end;
     }
 
     .context-pressure:empty { display: none; }
@@ -277,7 +270,7 @@
       white-space: nowrap;
     }
 
-    .context-unknown { color: var(--gray); }
+    .context-unknown { opacity: 0.65; }
 
     /* ====================================================
        CODE BUILDER PANEL
@@ -315,30 +308,60 @@
       display: none;
     }
 
-    /* ====================================================
-       CODE PREVIEW
-    ==================================================== */
-    .code-preview {
-      background: var(--gray-light);
-      border-radius: 7px;
-      padding: 9px 12px;
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+    .mpts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(62px, 1fr));
+      gap: 6px;
+      margin-bottom: 8px;
     }
 
-    .preview-meta  { font-size: 0.68rem; color: var(--gray); margin-bottom: 2px; }
-    .preview-code  { font-size: 1.3rem; font-weight: 800; font-family: 'Courier New', monospace; letter-spacing: 0.02em; }
-    .preview-side  { font-size: 0.8rem; font-weight: 700; }
-    .preview-context { font-size: 0.68rem; color: var(--gray); text-align: right; margin-top: 2px; }
-    .preview-player   { color: var(--green); }
-    .preview-opponent { color: var(--red); }
+    .mpts-grid .btn-code {
+      min-height: 46px;
+      font-size: 1rem;
+      padding: 8px 6px;
+      width: 100%;
+    }
+
+    .mpts-option-label {
+      margin-top: 2px;
+      min-height: 1.4em;
+      color: var(--gray);
+      font-size: 0.62rem;
+      font-weight: 600;
+      line-height: 1.1;
+      text-align: center;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .mpts-good { border-color: var(--green); color: var(--green-dark); }
+    .mpts-bad  { border-color: var(--red); color: var(--red); }
+    .mpts-qual { border-color: var(--blue); color: var(--blue); }
+    .mpts-na   { border-color: var(--gray); color: var(--gray); }
+    .mpts-win  { background: var(--green); color: var(--white); border-color: var(--green); }
+    .mpts-loss { background: var(--red); color: var(--white); border-color: var(--red); }
+
+    .mpts-help {
+      font-size: 0.78rem;
+      line-height: 1.45;
+      color: var(--gray);
+      margin-bottom: 8px;
+    }
 
     .record-row {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 5px;
+      margin-top: 2px;
+    }
+
+    .record-row .btn,
+    .record-row .btn-code {
+      padding: 7px 4px;
+      font-size: 0.72rem;
+      min-width: 0;
     }
 
     /* ====================================================
@@ -690,6 +713,10 @@
 
     <!-- Score card -->
     <div class="score-card">
+      <div class="scorebug-context">
+        <div class="context-role" id="contextRole">Server unknown</div>
+        <div class="context-pressure" id="contextPressure" aria-label="Point pressure"></div>
+      </div>
       <div class="match-label" id="matchLabel">Player vs Opponent</div>
       <div class="scorebug-points" id="tennisPts" aria-live="polite">0 – 0</div>
       <div class="scorebug-summary" aria-label="Games and sets score">
@@ -704,109 +731,23 @@
       </div>
     </div>
 
-    <div class="context-bar" id="contextBar">
-      <div class="context-main">
-        <div class="context-role" id="contextRole">Server unknown</div>
-        <div class="context-pressure" id="contextPressure" aria-label="Point pressure"></div>
-      </div>
-      <button class="btn btn-xs btn-secondary" onclick="swapCurrentServer()">Swap Server</button>
-    </div>
-
-    <!-- Point buttons -->
-    <div class="point-btns" id="pointBtns">
-      <button class="btn btn-player" id="btnPlayerWon" onclick="startPoint('player')">✅ Player Won</button>
-      <button class="btn btn-opponent" id="btnOppWon" onclick="startPoint('opponent')">❌ Opp Won</button>
-    </div>
-
-    <!-- Code builder (hidden until point started) -->
+    <!-- Point entry -->
     <div class="code-builder hidden" id="codeBuilder">
-
-      <!-- Shot marker -->
-      <div class="builder-row">
-        <div class="builder-label">Shot Marker <span style="font-weight:400;text-transform:none">(required)</span></div>
-        <div class="btn-group" id="shotGrp">
-          <button class="btn-code" data-shot="F"  onclick="selShot('F')">F<br><small>Fore</small></button>
-          <button class="btn-code" data-shot="B"  onclick="selShot('B')">B<br><small>Back</small></button>
-          <button class="btn-code" data-shot="R"  onclick="selShot('R')">R<br><small>Return</small></button>
-          <button class="btn-code" data-shot="S"  onclick="selShot('S')">S<br><small>Serve</small></button>
-          <button class="btn-code" data-shot="V"  onclick="selShot('V')">V<br><small>Volley</small></button>
-          <button class="btn-code" data-shot="O"  onclick="selShot('O')">O<br><small>Overhead</small></button>
-          <button class="btn-code" data-shot="!"  onclick="selShot('!')">!<br><small>No Fix</small></button>
-        </div>
-      </div>
-
-      <!-- Core code -->
-      <div class="builder-row" id="coreRow" hidden>
-        <div class="builder-label">Core Code</div>
-        <div class="btn-group" id="coreGrp">
-          <button class="btn-code" data-core="A"   onclick="selCore('A')">A<br><small>Ace</small></button>
-          <button class="btn-code" data-core="S+"  onclick="selCore('S+')">S+<br><small>Serve+</small></button>
-          <button class="btn-code" data-core="DF"  onclick="selCore('DF')">DF<br><small>DblFault</small></button>
-          <button class="btn-code" data-core="UE"  onclick="selCore('UE')">UE<br><small>Unforced</small></button>
-          <button class="btn-code" data-core="+1"  onclick="selCore('+1')">+1<br><small>1st Ball</small></button>
-          <button class="btn-code" data-core="S"   onclick="selCore('S')">S–<br><small>Setup Err</small></button>
-          <button class="btn-code" data-core="T"   onclick="selCore('T')">T–<br><small>Tactical</small></button>
-          <button class="btn-code" data-core="N"   onclick="selCore('N')">N–<br><small>Neutral</small></button>
-          <button class="btn-code" data-core="W"   onclick="selCore('W')">W–<br><small>Winner</small></button>
-        </div>
-      </div>
-
-      <!-- Error detail (shown only for UE) -->
-      <div class="builder-row" id="errorRow" style="display:none">
-        <div class="builder-label">Unforced Error Detail</div>
-        <div class="btn-group" id="errorGrp">
-          <button class="btn-code" data-error="N" onclick="selError('N')">N<br><small>Net</small></button>
-          <button class="btn-code" data-error="W" onclick="selError('W')">W<br><small>Wide</small></button>
-          <button class="btn-code" data-error="L" onclick="selError('L')">L<br><small>Long</small></button>
-        </div>
-      </div>
-
-      <!-- Zone (shown only when core needs it) -->
-      <div class="builder-row" id="zoneRow" style="display:none">
-        <div class="builder-label">Zone (7ST Map)</div>
-        <div class="btn-group" id="zoneGrp">
-          <button class="btn-code" data-zone="1" onclick="selZone(1)">1<br><small>Short/Danger</small></button>
-          <button class="btn-code" data-zone="2" onclick="selZone(2)">2<br><small>Mid/Neutral</small></button>
-          <button class="btn-code" data-zone="3" onclick="selZone(3)">3<br><small>Deep/Safe</small></button>
-          <button class="btn-code" data-zone="4" onclick="selZone(4)">4<br><small>Short Wide</small></button>
-          <button class="btn-code" data-zone="5" onclick="selZone(5)">5<br><small>Short Wide</small></button>
-          <button class="btn-code" data-zone="6" onclick="selZone(6)">6<br><small>Deep Corner</small></button>
-          <button class="btn-code" data-zone="7" onclick="selZone(7)">7<br><small>Net/Touch</small></button>
-        </div>
-      </div>
-
-      <!-- Modifiers -->
-      <div class="builder-row">
-        <div class="builder-label">Modifiers</div>
-        <div class="btn-group">
-          <button class="btn-code" id="btnBig"  onclick="togBig()">⭐ Big Point *</button>
-          <button class="btn-code" id="btnLeak" onclick="togLeak()">[ ] Leak Run</button>
-        </div>
-      </div>
-
-      <!-- Preview -->
-      <div class="code-preview">
-        <div>
-          <div class="preview-meta">Code Preview</div>
-          <div class="preview-code" id="previewCode">—</div>
-        </div>
-        <div>
-          <div class="preview-side" id="previewSide"></div>
-          <div class="preview-context" id="previewContext"></div>
-        </div>
-      </div>
+      <div id="mptsFlow"></div>
 
       <!-- Action buttons -->
       <div class="record-row">
+        <button class="btn-code" id="btnBig" onclick="togBig()" aria-label="Big point">*</button>
+        <button class="btn btn-secondary" onclick="undoLast()">Undo</button>
+        <button class="btn btn-secondary" onclick="swapCurrentServer()" aria-label="Swap Server">Srv</button>
+        <button class="btn btn-secondary" id="btnMptsBack" onclick="mptsBack()">Back</button>
         <button class="btn btn-secondary" onclick="cancelPoint()">Cancel</button>
-        <button class="btn btn-primary"   onclick="recordPoint()">Record Point ↩</button>
       </div>
     </div>
 
     <!-- Game control bar -->
     <div class="game-bar">
       <span class="game-bar-label">Game actions</span>
-      <button class="btn btn-xs btn-secondary" onclick="undoLast()">↩ Undo</button>
       <button class="btn btn-xs btn-primary"   onclick="endGame()">End Game →</button>
     </div>
 
@@ -843,59 +784,56 @@
 <div class="screen" id="screen-guide">
 
   <div class="guide-section">
-    <h3>Core Codes</h3>
+    <h3>MPTS 2.0 Flow</h3>
+    <p style="font-size:0.82rem;line-height:1.6;margin-bottom:8px">
+      Record the most important momentum inflection, not every technical detail. Each point uses the same four taps:
+      <strong>Momentum</strong>, <strong>Shot</strong>, <strong>Detail</strong>, then <strong>Outcome</strong>.
+    </p>
     <table class="code-table">
-      <tr><th>Code</th><th>Meaning</th></tr>
-      <tr><td>A</td><td>Ace / untouched serve</td></tr>
-      <tr><td>S+</td><td>Serve-created point or forced return error</td></tr>
-      <tr><td>DF</td><td>Double fault</td></tr>
-      <tr><td>UE-N/W/L</td><td>Unforced error by player into the net, wide, or long</td></tr>
-      <tr><td>+1</td><td>Wasted first ball after serve or return</td></tr>
-      <tr><td>S–<em>zone</em></td><td>Setup error: short, attackable ball</td></tr>
-      <tr><td>T–<em>zone</em></td><td>Tactical error: wrong shot, target, or risk</td></tr>
-      <tr><td>N–<em>zone</em></td><td>Good neutralizer / deep reset under pressure</td></tr>
-      <tr><td>W–<em>zone</em></td><td>Won with depth, power, angle, or touch</td></tr>
+      <tr><th>Step</th><th>Question</th></tr>
+      <tr><td>1</td><td>Why did the point pivot? GOOD, BAD, QUAL, or N/A.</td></tr>
+      <tr><td>2</td><td>Which shot or phase caused the pivot?</td></tr>
+      <tr><td>3</td><td>What specific acronym explains it?</td></tr>
+      <tr><td>4</td><td>Did our player win or lose the point?</td></tr>
     </table>
   </div>
 
   <div class="guide-section">
-    <h3>Shot Markers (required prefix)</h3>
+    <h3>Momentum</h3>
     <table class="code-table">
-      <tr><th>Marker</th><th>Meaning</th></tr>
-      <tr><td>F</td><td>Forehand</td></tr>
-      <tr><td>B</td><td>Backhand</td></tr>
-      <tr><td>R</td><td>Return</td></tr>
-      <tr><td>S</td><td>Serve</td></tr>
-      <tr><td>V</td><td>Volley</td></tr>
-      <tr><td>O</td><td>Overhead</td></tr>
-      <tr><td>!</td><td>Opponent quality/giveaway; no clear correction for player. Record directly without a core code.</td></tr>
+      <tr><th>Code</th><th>Meaning</th></tr>
+      <tr><td>GOOD (+)</td><td>We took control or successfully neutralized pressure.</td></tr>
+      <tr><td>BAD (-)</td><td>We surrendered control or made a tactical/technical error.</td></tr>
+      <tr><td>QUAL (!)</td><td>Opponent won with quality; no obvious correction for our player.</td></tr>
+      <tr><td>N/A (Ø)</td><td>Routine exchange; no clear pivot before the terminal result.</td></tr>
+    </table>
+  </div>
+
+  <div class="guide-section">
+    <h3>Shots</h3>
+    <table class="code-table">
+      <tr><th>Code</th><th>Meaning</th></tr>
+      <tr><td>SRV</td><td>Serve</td></tr>
+      <tr><td>RET</td><td>Return</td></tr>
+      <tr><td>FH</td><td>Forehand</td></tr>
+      <tr><td>BH</td><td>Backhand</td></tr>
+      <tr><td>TRN</td><td>Transition / approach / mid-court entry</td></tr>
+      <tr><td>NET</td><td>Volley, overhead, or net finish</td></tr>
     </table>
     <p style="font-size:0.78rem;color:var(--gray);margin-top:6px">
-      Choose a shot marker before selecting the core code. Serve (<strong>S</strong>) only pairs with serve codes; <strong>+1</strong> is only for forehand, backhand, or return; <strong>UE</strong> opens Net, Wide, and Long details.
+      SRV appears only when our player is serving; RET appears only when the opponent is serving.
     </p>
   </div>
 
   <div class="guide-section">
-    <h3>7ST Zone Map</h3>
+    <h3>Detail Code Definitions</h3>
     <table class="code-table">
-      <tr><th>Zone</th><th>Location</th><th>Example</th></tr>
-      <tr><td>1</td><td>Short / danger zone</td><td>S-1 → Setup error into danger zone</td></tr>
-      <tr><td>2</td><td>Mid / neutral zone</td><td>N-2 → Neutralizer to mid court</td></tr>
-      <tr><td>3</td><td>Deep / safe zone</td><td>N-3 → Deep reset, smart defensive shot</td></tr>
-      <tr><td>4</td><td>Short wide angle</td><td>W-4 → Short angle winner</td></tr>
-      <tr><td>5</td><td>Short wide angle</td><td>W-5 → Short angle winner (other side)</td></tr>
-      <tr><td>6</td><td>Deep corners / weapon zone</td><td>W-6 → Deep corner winner</td></tr>
-      <tr><td>7</td><td>Net / touch zone</td><td>W-7 → Drop shot, volley, or net finish</td></tr>
+      <thead><tr><th>Code</th><th>Meaning</th><th>Used for</th></tr></thead>
+      <tbody id="detailCodeGuide"></tbody>
     </table>
-  </div>
-
-  <div class="guide-section">
-    <h3>Special Markers</h3>
-    <table class="code-table">
-      <tr><th>Marker</th><th>Meaning</th></tr>
-      <tr><td>*</td><td>Big / momentum point (e.g. F/T-6*)</td></tr>
-      <tr><td>[ ]</td><td>Three-point leak or related run — marks grouped points</td></tr>
-    </table>
+    <p style="font-size:0.78rem;color:var(--gray);margin-top:6px">
+      Terminal details such as ACE, DF, and clear misses record the obvious outcome automatically instead of showing WIN/LOSS.
+    </p>
   </div>
 
   <div class="guide-section">
@@ -905,24 +843,19 @@
     </p>
     <table class="code-table">
       <tr><th>Context</th><th>How it works</th></tr>
-      <tr><td>Server</td><td>Choose the first server once. The app alternates by game; use Swap Server only to correct the current game.</td></tr>
+      <tr><td>Server</td><td>Choose the first server once. The app alternates by game; use Srv only to correct the current game.</td></tr>
+      <tr><td>Shot filter</td><td>The shot screen uses the server context to hide impossible SRV/RET choices.</td></tr>
       <tr><td>Pressure</td><td>Break, game, set, match, deuce, and advantage tags are computed automatically from the score.</td></tr>
       <tr><td>*</td><td>Still manual: use it for emotional or momentum points that matter beyond the formal score.</td></tr>
     </table>
   </div>
 
   <div class="guide-section">
-    <h3>Recording Priority (during match)</h3>
-    <ol style="font-size:0.82rem;line-height:1.9;padding-left:18px;color:var(--text)">
-      <li>Serve</li>
-      <li>Return</li>
-      <li>+1 shot</li>
-      <li>Short balls given away</li>
-      <li>Wrong tactical choices</li>
-      <li>Good neutralizers</li>
-      <li>Weapons / winners</li>
-    </ol>
-    <p style="font-size:0.78rem;color:var(--gray);margin-top:8px">Do not try to capture everything. Capture the useful coaching signal.</p>
+    <h3>Stats Rule</h3>
+    <p style="font-size:0.82rem;line-height:1.6">
+      The Stats screen flags <strong>Lucky Wins</strong>, <strong>Quality Losses</strong>, and the top <strong>Shot Leak</strong>,
+      then turns the leak into one pattern and one training action.
+    </p>
   </div>
 
   <div class="guide-section">
@@ -930,10 +863,10 @@
     <p style="font-size:0.82rem;line-height:1.6">Review only: <strong>One pattern + one action.</strong></p>
     <table class="code-table" style="margin-top:8px">
       <tr><th>Pattern</th><th>Action</th></tr>
-      <tr><td>Many F/S-1 errors</td><td>Train forehand rally depth</td></tr>
-      <tr><td>Many +1 errors</td><td>First ball after serve must go deep with margin</td></tr>
-      <tr><td>Many T-6 errors</td><td>Attack only when balanced or inside baseline</td></tr>
-      <tr><td>Many ! marks</td><td>Do not over-coach; no clear player correction</td></tr>
+      <tr><td>Many -BH-SHT losses</td><td>Train backhand cross-court depth with margin</td></tr>
+      <tr><td>Many -SRV-DF points</td><td>Simplify second-serve target and build spin margin</td></tr>
+      <tr><td>Many -TRN-CHO points</td><td>Add a go/no-go cue before moving forward</td></tr>
+      <tr><td>Many ! points</td><td>Do not over-coach; no clear player correction</td></tr>
     </table>
   </div>
 </div>
@@ -1033,38 +966,6 @@
 // CONSTANTS
 // ============================================================
 
-// Core codes that require a zone suffix.
-// Values match data-core attributes in the HTML (single letters without dash).
-// buildCode() appends '-' + zone, producing codes like S-1, N-3, W-6, T-7.
-const ZONE_CODES = new Set(['S', 'T', 'N', 'W']);
-const ERROR_DETAIL_CODES = new Set(['UE']);
-const SHOT_ONLY_CODES = new Set(['!']);
-
-const CORE_ALLOWED_POINT_WINNERS = {
-  A: ['player'],
-  'S+': ['player'],
-  DF: ['opponent'],
-  UE: ['opponent'],
-  '+1': ['player', 'opponent'],
-  S: ['player', 'opponent'],
-  T: ['player', 'opponent'],
-  N: ['player', 'opponent'],
-  W: ['player'],
-  '!': ['player', 'opponent'],
-};
-
-const CORE_ALLOWED_SHOTS = {
-  A: ['S'],
-  'S+': ['S'],
-  DF: ['S'],
-  UE: ['F', 'B', 'R', 'V', 'O'],
-  '+1': ['F', 'B', 'R'],
-  S: ['F', 'B', 'R', 'V', 'O'],
-  T: ['F', 'B', 'R', 'V', 'O'],
-  N: ['F', 'B', 'R', 'V', 'O'],
-  W: ['F', 'B', 'R', 'V', 'O'],
-};
-
 const PRESSURE_LABELS = {
   match_point: 'Match Point',
   set_point: 'Set Point',
@@ -1089,6 +990,112 @@ const STORAGE_ID  = 'tennis_pivot_tracker_currentId';
 // Tennis point labels
 const PTS = ['0', '15', '30', '40'];
 
+const MPTS_TABLE = {
+  momentum: [
+    { id: 'GOOD', code: '+', label: 'GOOD (+)', help: 'We took control or neutralized pressure.', cls: 'mpts-good' },
+    { id: 'BAD',  code: '-', label: 'BAD (-)',  help: 'We surrendered control or made an error.', cls: 'mpts-bad' },
+    { id: 'QUAL', code: '!', label: 'QUAL (!)', help: 'Opponent quality; no obvious correction.', cls: 'mpts-qual' },
+    { id: 'NA',   code: 'Ø', label: 'N/A (Ø)',  help: 'Routine exchange; no clear pivot.', cls: 'mpts-na' },
+  ],
+  shots: [
+    { id: 'SRV', label: 'Serve' },
+    { id: 'RET', label: 'Return' },
+    { id: 'FH',  label: 'Forehand' },
+    { id: 'BH',  label: 'Backhand' },
+    { id: 'TRN', label: 'Transition' },
+    { id: 'NET', label: 'Net' },
+  ],
+  details: {
+    FH: {
+      GOOD: [
+        { id: 'COR', label: 'Corner Weapon' },
+        { id: 'ANG', label: 'Wide Angle' },
+        { id: 'RST', label: 'Deep Reset' },
+        { id: 'WFT', label: 'Wrong Foot' },
+      ],
+      BAD: [
+        { id: 'SHT', label: 'Short Ball' },
+        { id: 'GRD', label: 'Greedy / Wrong Target' },
+        { id: 'DIR', label: 'Bad Direction' },
+        { id: 'NET', label: 'Net Miss', outcome: 'LOSS' },
+        { id: 'LNG', label: 'Long Miss', outcome: 'LOSS' },
+        { id: 'WDE', label: 'Wide Miss', outcome: 'LOSS' },
+      ],
+    },
+    BH: {
+      GOOD: [
+        { id: 'COR', label: 'Corner Weapon' },
+        { id: 'ANG', label: 'Wide Angle' },
+        { id: 'RST', label: 'Deep Reset' },
+        { id: 'WFT', label: 'Wrong Foot' },
+      ],
+      BAD: [
+        { id: 'SHT', label: 'Short Ball' },
+        { id: 'GRD', label: 'Greedy / Wrong Target' },
+        { id: 'DIR', label: 'Bad Direction' },
+        { id: 'NET', label: 'Net Miss', outcome: 'LOSS' },
+        { id: 'LNG', label: 'Long Miss', outcome: 'LOSS' },
+        { id: 'WDE', label: 'Wide Miss', outcome: 'LOSS' },
+      ],
+    },
+    TRN: {
+      GOOD: [
+        { id: 'AP+', label: 'Great Approach' },
+        { id: 'SNK', label: 'Sneak Attack' },
+        { id: 'KIL', label: 'Mid-court Kill' },
+      ],
+      BAD: [
+        { id: 'AP-', label: 'Weak Approach' },
+        { id: 'TGT', label: 'Wrong Target' },
+        { id: 'CHO', label: 'Poor Move-in Choice' },
+      ],
+    },
+    NET: {
+      GOOD: [
+        { id: 'TCH', label: 'Touch / Drop' },
+        { id: 'VLY', label: 'Forcing Volley' },
+        { id: 'SMH', label: 'Smash / Overhead Winner', outcome: 'WIN' },
+      ],
+      BAD: [
+        { id: 'VMS', label: 'Volley Miss', outcome: 'LOSS' },
+        { id: 'VSH', label: 'Volley Short' },
+        { id: 'PSD', label: 'Passed / Positioning', outcome: 'LOSS' },
+      ],
+    },
+    SRV: {
+      GOOD: [
+        { id: 'ACE', label: 'Ace', outcome: 'WIN' },
+        { id: 'FRC', label: 'Forced Error', outcome: 'WIN' },
+        { id: 'BDY', label: 'Body Jam' },
+      ],
+      BAD: [
+        { id: 'DF', label: 'Double Fault', outcome: 'LOSS' },
+        { id: 'SHT', label: 'Attackable 2nd' },
+        { id: 'PRE', label: 'Predictable' },
+      ],
+    },
+    RET: {
+      GOOD: [
+        { id: 'AGG', label: 'Aggressive / Forcing' },
+        { id: 'DRT', label: 'Deep Reset Return' },
+      ],
+      BAD: [
+        { id: 'PAS', label: 'Passive Sitter' },
+        { id: 'NET', label: 'Net Miss', outcome: 'LOSS' },
+        { id: 'LNG', label: 'Long Miss', outcome: 'LOSS' },
+      ],
+    },
+  },
+  autoDetails: {
+    QUAL: [{ id: 'QUAL', label: 'Opponent Quality', outcome: 'LOSS' }],
+    NA: [{ id: 'NA', label: 'Routine / No Pivot' }],
+  },
+  outcomes: [
+    { id: 'WIN', label: 'WIN', side: 'player', cls: 'mpts-win' },
+    { id: 'LOSS', label: 'LOSS', side: 'opponent', cls: 'mpts-loss' },
+  ],
+};
+
 // ============================================================
 // STATE
 // ============================================================
@@ -1098,13 +1105,12 @@ let currentId = null;
 
 // Builder transient state
 let pending = {
-  side: null,   // 'player' | 'opponent'
-  shot: null,   // 'F'|'B'|'R'|'S'|'V'|'O'|'!'
-  core: null,   // 'A'|'S+'|'DF'|'UE'|'+1'|'S'|'T'|'N'|'W'|'!'
-  zone: null,   // 1-7
-  error: null,  // 'N'|'W'|'L' for UE details
-  big:  false,
-  leak: false,
+  step: 0,
+  momentum: null,
+  shot: null,
+  detail: null,
+  outcome: null,
+  big: false,
 };
 
 let deleteTargetId = null;
@@ -1225,7 +1231,16 @@ function normalizeStoredMatches() {
 }
 
 function normalizeGame(g) {
-  let changed = normalizeGamePointCounts(g);
+  let changed = false;
+  if (!Array.isArray(g.points)) {
+    g.points = [];
+    changed = true;
+  }
+  const validPoints = g.points.filter(pt => pt && typeof pt === 'object');
+  if (validPoints.length !== g.points.length) {
+    g.points = validPoints;
+    changed = true;
+  }
   if (!isSide(g.server)) {
     if (g.server !== null) changed = true;
     g.server = null;
@@ -1233,6 +1248,7 @@ function normalizeGame(g) {
   g.points.forEach(pt => {
     if (pt && typeof pt === 'object') changed = normalizeStoredPoint(pt) || changed;
   });
+  changed = normalizeGamePointCounts(g) || changed;
   return changed;
 }
 
@@ -1258,6 +1274,27 @@ function normalizeGamePointCounts(g) {
 
 function normalizeStoredPoint(pt) {
   let changed = false;
+  const normalizedMpts = normalizeMptsValue(pt.mpts);
+  if (normalizedMpts) {
+    const outcome = mptsOutcomeDef(normalizedMpts.outcome);
+    const nextCode = buildCode({ ...normalizedMpts, big: !!pt.big || String(pt.code || '').includes('*') });
+    if (JSON.stringify(pt.mpts) !== JSON.stringify(normalizedMpts)) {
+      pt.mpts = normalizedMpts;
+      changed = true;
+    }
+    if (pt.side !== outcome.side) {
+      pt.side = outcome.side;
+      changed = true;
+    }
+    if (pt.code !== nextCode) {
+      pt.code = nextCode;
+      changed = true;
+    }
+  }
+  if (pt.big === undefined) {
+    pt.big = String(pt.code || '').includes('*');
+    changed = true;
+  }
   if (pt.context !== undefined) {
     const normalized = normalizePointContextValue(pt.context);
     if (JSON.stringify(pt.context) !== JSON.stringify(normalized)) {
@@ -1266,6 +1303,17 @@ function normalizeStoredPoint(pt) {
     }
   }
   return changed;
+}
+
+function normalizeMptsValue(value) {
+  if (!value || typeof value !== 'object') return null;
+  const momentum = mptsById(MPTS_TABLE.momentum, value.momentum) ? value.momentum : null;
+  const shot = mptsById(MPTS_TABLE.shots, value.shot) ? value.shot : null;
+  const outcome = mptsById(MPTS_TABLE.outcomes, value.outcome) ? value.outcome : null;
+  if (!momentum || !shot || !outcome) return null;
+  const detail = mptsDetailOptions(momentum, shot).some(opt => opt.id === value.detail) ? value.detail : null;
+  if (!detail) return null;
+  return { momentum, shot, detail, outcome };
 }
 
 function normalizePointCount(value, fallback = 0) {
@@ -1406,119 +1454,29 @@ function today() { return new Date().toISOString().slice(0, 10); }
 // POINT RECORDING
 // ============================================================
 
-function isCoreCodeAllowed(code, pointWinner, shot) {
-  const allowedWinners = CORE_ALLOWED_POINT_WINNERS[code];
-  const winnerAllowed = !allowedWinners || allowedWinners.includes(pointWinner);
-  const allowedShots = CORE_ALLOWED_SHOTS[code];
-  const shotAllowed = !!shot && (!allowedShots || allowedShots.includes(shot));
-  return winnerAllowed && shotAllowed;
+function resetPending() {
+  pending = { step: 0, momentum: null, shot: null, detail: null, outcome: null, big: false };
 }
 
-function applyCoreCodeVisibility() {
-  const showCore = !!pending.shot && !SHOT_ONLY_CODES.has(pending.shot);
-  qs('#coreRow').hidden = !showCore;
-  qsa('#coreGrp .btn-code').forEach(btn => {
-    const core = btn.dataset.core;
-    btn.hidden = !showCore || !isCoreCodeAllowed(core, pending.side, pending.shot);
-  });
-}
-
-function clearCoreSelection() {
-  pending.core = null;
-  pending.zone = null;
-  pending.error = null;
-  qsa('#coreGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
-  qsa('#zoneGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
-  qsa('#errorGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
-  qs('#zoneRow').style.display = 'none';
-  qs('#errorRow').style.display = 'none';
-}
-
-function startPoint(side) {
+function startPoint() {
   if (!cur() || cur().status === 'completed') return;
-  pending = { side, shot: null, core: null, zone: null, error: null, big: false, leak: false };
-
-  // Reset UI
-  qsa('#shotGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
-  qsa('#coreGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
-  qsa('#zoneGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
-  qsa('#errorGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
+  resetPending();
   qs('#btnBig').classList.remove('sel-amber');
-  qs('#btnLeak').classList.remove('sel-blue');
-  qs('#zoneRow').style.display = 'none';
-  qs('#errorRow').style.display = 'none';
-  applyCoreCodeVisibility();
   qs('#codeBuilder').classList.remove('hidden');
-  qs('#pointBtns').style.display = 'none';
-  updatePreview();
+  renderMptsStep();
 }
 
 function cancelPoint() {
-  pending.side = null;
-  qs('#codeBuilder').classList.add('hidden');
-  qs('#pointBtns').style.display = 'grid';
-}
-
-function selShot(s) {
-  const nextShot = pending.shot === s ? null : s;
-  qsa('#shotGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
-  pending.shot = nextShot;
-  if (pending.shot === '!') {
-    clearCoreSelection();
-    pending.core = '!';
-  } else if (pending.core === '!' || (pending.core && !isCoreCodeAllowed(pending.core, pending.side, pending.shot))) {
-    clearCoreSelection();
-  }
-  if (pending.shot) {
-    const b = qs(`[data-shot="${CSS.escape(pending.shot)}"]`);
-    if (b) b.classList.add('sel-blue');
-  }
-  applyCoreCodeVisibility();
-  updatePreview();
-}
-
-function selCore(c) {
-  if (!pending.shot) {
-    toast('Select a shot marker before choosing a core code', 'error');
+  resetPending();
+  qs('#btnBig').classList.remove('sel-amber');
+  if (!cur() || cur().status === 'completed') {
+    qs('#codeBuilder').classList.add('hidden');
+    qs('#mptsFlow').innerHTML = '';
+    updatePreview();
     return;
   }
-  if (pending.side && !isCoreCodeAllowed(c, pending.side, pending.shot)) {
-    toast('This code is not available for the selected shot and point winner', 'error');
-    return;
-  }
-
-  qsa('#coreGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
-  pending.core = c;
-  const btn = qs(`[data-core="${CSS.escape(c)}"]`);
-  if (btn) btn.classList.add('sel-blue');
-
-  const needZone = ZONE_CODES.has(c);
-  const needError = ERROR_DETAIL_CODES.has(c);
-  qs('#zoneRow').style.display = needZone ? 'block' : 'none';
-  qs('#errorRow').style.display = needError ? 'block' : 'none';
-  if (!needZone) {
-    pending.zone = null;
-    qsa('#zoneGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
-  }
-  if (!needError) {
-    pending.error = null;
-    qsa('#errorGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
-  }
-  updatePreview();
-}
-
-function selZone(z) {
-  qsa('#zoneGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
-  pending.zone = z;
-  qs(`[data-zone="${z}"]`).classList.add('sel-blue');
-  updatePreview();
-}
-
-function selError(e) {
-  qsa('#errorGrp .btn-code').forEach(b => b.classList.remove('sel-blue'));
-  pending.error = e;
-  qs(`[data-error="${e}"]`).classList.add('sel-blue');
-  updatePreview();
+  qs('#codeBuilder').classList.remove('hidden');
+  renderMptsStep();
 }
 
 function togBig() {
@@ -1527,69 +1485,144 @@ function togBig() {
   updatePreview();
 }
 
-function togLeak() {
-  pending.leak = !pending.leak;
-  qs('#btnLeak').classList.toggle('sel-blue', pending.leak);
-  updatePreview();
+function mptsSelect(kind, id) {
+  if (kind === 'momentum') {
+    if (!mptsById(MPTS_TABLE.momentum, id)) { toast('Unknown momentum state', 'error'); return; }
+    pending.momentum = id;
+    pending.shot = null;
+    pending.detail = null;
+    pending.outcome = null;
+    pending.step = 1;
+  } else if (kind === 'shot') {
+    if (!mptsById(mptsShotOptions(), id)) { toast('That shot is not available for this server context', 'error'); return; }
+    pending.shot = id;
+    pending.detail = null;
+    pending.outcome = null;
+    pending.step = 2;
+  } else if (kind === 'detail') {
+    const detail = mptsDetailOptions(pending.momentum, pending.shot).find(d => d.id === id);
+    if (!detail) { toast('Unknown detail state', 'error'); return; }
+    pending.detail = id;
+    pending.outcome = null;
+    if (detail.outcome) {
+      if (!mptsById(MPTS_TABLE.outcomes, detail.outcome)) { toast('Unknown automatic outcome', 'error'); return; }
+      pending.outcome = detail.outcome;
+      recordPoint();
+      return;
+    }
+    pending.step = 3;
+  } else if (kind === 'outcome') {
+    if (!mptsById(MPTS_TABLE.outcomes, id)) { toast('Unknown outcome state', 'error'); return; }
+    pending.outcome = id;
+    recordPoint();
+    return;
+  }
+  renderMptsStep();
 }
 
-function buildCode() {
-  if (!pending.core) return '';
-  if (pending.core === '!') return pending.big ? '!*' : '!';
-  let c = '';
-  if (pending.shot) c += pending.shot + '/';
-  c += pending.core;
-  if (ZONE_CODES.has(pending.core) && pending.zone) c += '-' + pending.zone;
-  if (ERROR_DETAIL_CODES.has(pending.core) && pending.error) c += '-' + pending.error;
-  if (pending.big)  c += '*';
-  return c;
+function mptsBack() {
+  if (pending.step <= 0) {
+    cancelPoint();
+    return;
+  }
+  if (pending.step === 3) pending.outcome = null;
+  if (pending.step === 2) pending.detail = null;
+  if (pending.step === 1) pending.shot = null;
+  pending.step--;
+  renderMptsStep();
+}
+
+function renderMptsStep() {
+  updatePreview();
+  const backBtn = qs('#btnMptsBack');
+  if (backBtn) backBtn.disabled = pending.step === 0;
+
+  const steps = [
+    {
+      kind: 'momentum',
+      options: MPTS_TABLE.momentum,
+    },
+    {
+      kind: 'shot',
+      options: mptsShotOptions(),
+    },
+    {
+      kind: 'detail',
+      options: mptsDetailOptions(pending.momentum, pending.shot),
+    },
+    {
+      kind: 'outcome',
+      options: MPTS_TABLE.outcomes,
+    },
+  ];
+
+  const current = steps[pending.step] || steps[0];
+  qs('#mptsFlow').innerHTML = `<div class="mpts-step">
+    <div class="mpts-grid">${current.options.map(opt => mptsButtonHtml(current.kind, opt)).join('')}</div>
+  </div>`;
+}
+
+function mptsButtonHtml(kind, opt) {
+  const selected = pending[kind] === opt.id ? ' sel-blue' : '';
+  const cls = opt.cls || (kind === 'detail' ? mptsMomentumDef(pending.momentum).cls : '');
+  return `<div class="mpts-option">
+    <button class="btn-code ${esc(cls)}${selected}" onclick="mptsSelect('${kind}','${esc(opt.id)}')">${esc(opt.id)}</button>
+    <div class="mpts-option-label">${esc(mptsOptionDescription(kind, opt))}</div>
+  </div>`;
+}
+
+function mptsOptionDescription(kind, opt) {
+  if (kind === 'momentum') return opt.help || opt.label || '';
+  if (kind === 'outcome') return opt.side === 'player' ? 'Our player' : 'Opponent';
+  return opt.label || '';
+}
+
+function buildCode(source = pending) {
+  const momentum = mptsById(MPTS_TABLE.momentum, source.momentum);
+  if (!momentum && !source.shot && !source.detail) return '';
+  const parts = [];
+  if (source.shot) parts.push(source.shot);
+  if (source.detail) parts.push(source.detail);
+  if (source.outcome) parts.push(source.outcome === 'WIN' ? 'W' : 'L');
+  let code = `${momentum ? momentum.code : ''}${parts.join('-')}`;
+  if (source.big) code += '*';
+  return code;
 }
 
 function updatePreview() {
-  const code = buildCode();
-  qs('#previewCode').textContent = code || '—';
-  const sideEl = qs('#previewSide');
-  const contextEl = qs('#previewContext');
-  if (pending.side === 'player') {
-    sideEl.textContent = '✅ Player';
-    sideEl.className = 'preview-side preview-player';
-  } else if (pending.side === 'opponent') {
-    sideEl.textContent = '❌ Opponent';
-    sideEl.className = 'preview-side preview-opponent';
-  } else {
-    sideEl.textContent = '';
-    sideEl.className = 'preview-side';
-  }
-  contextEl.textContent = pending.side ? pointContextSummary(cur()) : '';
 }
 
 function recordPoint() {
-  if (!pending.shot) { toast('Select a shot marker before recording', 'error'); return; }
-  if (!pending.core) { toast('Select a core code (A, S+, DF, UE, W, etc.) before recording', 'error'); return; }
-  if (ERROR_DETAIL_CODES.has(pending.core) && !pending.error) {
-    toast('Select how the unforced error missed: Net, Wide, or Long', 'error');
-    return;
-  }
-  if (pending.side && !isCoreCodeAllowed(pending.core, pending.side, pending.shot)) {
-    toast('Selected code does not match the shot and point winner', 'error');
-    return;
-  }
-
   const m = cur();
   if (!m) return;
+  if (!pending.momentum || !pending.shot || !pending.detail || !pending.outcome) {
+    toast('Complete all four pivot screens before recording', 'error');
+    return;
+  }
+  const outcome = mptsById(MPTS_TABLE.outcomes, pending.outcome);
+  if (!outcome) return;
+
   const g = curGame(m);
   normalizeGamePointCounts(g);
   const context = currentPointContext(m, g);
+  const mpts = {
+    momentum: pending.momentum,
+    shot: pending.shot,
+    detail: pending.detail,
+    outcome: pending.outcome,
+  };
 
   const pt = {
     code: buildCode(),
-    side: pending.side,
-    leak: pending.leak,
+    side: outcome.side,
+    big: pending.big,
+    leak: false,
+    mpts,
     context,
   };
 
   g.points.push(pt);
-  if (pending.side === 'player') g.pp++; else g.op++;
+  if (outcome.side === 'player') g.pp++; else g.op++;
 
   const gameWinner = detectGameWinner(g);
   if (gameWinner) finishCurrentGame(m, gameWinner);
@@ -1716,6 +1749,7 @@ function renderAll() {
   renderRecord();
   renderSheet();
   renderStats();
+  renderGuide();
   renderMatchList();
 }
 
@@ -1737,12 +1771,10 @@ function renderRecord() {
     const winnerName = m.winner === 'player' ? m.player : m.opponent;
     qs('#completeBannerText').textContent = `${winnerName} wins!`;
     show('completeBanner');
-    qs('#btnPlayerWon').disabled = true;
-    qs('#btnOppWon').disabled    = true;
+    qs('#codeBuilder').classList.add('hidden');
   } else {
     hide('completeBanner');
-    qs('#btnPlayerWon').disabled = false;
-    qs('#btnOppWon').disabled    = false;
+    qs('#codeBuilder').classList.remove('hidden');
   }
 
   qs('#matchLabel').textContent    = `${m.player} vs ${m.opponent} — ${m.date}`;
@@ -1758,6 +1790,7 @@ function renderRecord() {
   const g = curGame(m);
   qs('#tennisPts').textContent = fmtPts(g.pp, g.op);
   renderPointContext(m);
+  if (!completed) renderMptsStep();
   renderCurrentGameSheet(m);
 }
 
@@ -1791,7 +1824,7 @@ function renderCurrentGameSheet(m) {
     html += '<div class="sheet-empty">No points recorded in this game yet.</div>';
   } else {
     g.points.forEach(pt => {
-      const isBig  = pt.code.includes('*');
+      const isBig  = pt.big || String(pt.code || '').includes('*');
       const cls    = isBig ? 'sheet-point big-pt' : pt.leak ? 'sheet-point leak-pt' : 'sheet-point';
       const display = pt.leak ? `[${esc(pt.code)}]` : esc(pt.code);
       const tags = pressureTagHtml(pt.context && pt.context.pressure, true);
@@ -1844,7 +1877,7 @@ function renderSheet() {
     }
     s.games.forEach((g, gi) => {
       g.points.forEach(pt => {
-        const isBig  = pt.code.includes('*');
+        const isBig  = pt.big || String(pt.code || '').includes('*');
         const cls    = isBig ? 'sheet-point big-pt' : pt.leak ? 'sheet-point leak-pt' : 'sheet-point';
         const display = pt.leak ? `[${esc(pt.code)}]` : esc(pt.code);
         const tags = pressureTagHtml(pt.context && pt.context.pressure, true);
@@ -1899,14 +1932,17 @@ function renderStats() {
 
   const pPts = all.filter(p => p.side === 'player').length;
   const oPts = all.filter(p => p.side === 'opponent').length;
-  const bigAll  = all.filter(p => p.code.includes('*'));
+  const bigAll  = all.filter(p => p.big || String(p.code || '').includes('*'));
   const bigP    = bigAll.filter(p => p.side === 'player').length;
   const bigO    = bigAll.filter(p => p.side === 'opponent').length;
-  const leakAll = all.filter(p => p.leak);
-  const leakP   = leakAll.filter(p => p.side === 'player').length;
-  const leakO   = leakAll.filter(p => p.side === 'opponent').length;
   const ss      = setScore(m);
   const gs      = gameScore(m);
+  const mptsAll = all.filter(hasMpts);
+  const luckyWins = mptsAll.filter(pt => pt.mpts.momentum === 'BAD' && pt.mpts.outcome === 'WIN').length;
+  const qualityLosses = mptsAll.filter(pt =>
+    (pt.mpts.momentum === 'GOOD' || pt.mpts.momentum === 'QUAL') && pt.mpts.outcome === 'LOSS'
+  ).length;
+  const shotLeak = topBadMptsPattern(mptsAll);
 
   const servePts = all.filter(pt => pointServer(pt) === 'player');
   const returnPts = all.filter(pt => pointServer(pt) === 'opponent');
@@ -1919,7 +1955,6 @@ function renderStats() {
   );
   const fullCounts = countPointsByCode(all, codeForStats);
   const sorted = sortCodeCounts(fullCounts);
-  const lostPatterns = sortCodeCounts(countPointsByCode(all.filter(pt => pt.side === 'opponent'), codeForStats));
   const topServeLoss = topCodeFor(servePts.filter(pt => pt.side === 'opponent'));
   const topReturnLoss = topCodeFor(returnPts.filter(pt => pt.side === 'opponent'));
   const topPressure = topCodeFor(pressurePts);
@@ -1951,10 +1986,14 @@ function renderStats() {
     <span>⭐ Big Points</span>
     <span><span class="stat-us">${bigP}</span> – <span class="stat-them">${bigO}</span></span>
   </div>
-  <div class="stat-row">
-    <span>[ ] Leak Points</span>
-    <span><span class="stat-us">${leakP}</span> – <span class="stat-them">${leakO}</span></span>
-  </div>
+  </div>`;
+
+  html += `<div class="stats-card">
+    <div class="stats-title">Momentum Pivot Flags</div>
+    <div class="stat-row"><span>Lucky Wins <span style="color:var(--gray)">(BAD → WIN)</span></span><span>${luckyWins}</span></div>
+    <div class="stat-row"><span>Quality Losses <span style="color:var(--gray)">(GOOD/QUAL → LOSS)</span></span><span>${qualityLosses}</span></div>
+    <div class="stat-row"><span>Shot Leak</span><span class="stat-code">${esc(shotLeak ? shotLeak.key : '—')}</span></div>
+    ${shotLeak ? mptsDirectiveHtml(shotLeak) : '<p style="font-size:0.78rem;color:var(--gray);margin-top:8px">No BAD momentum pattern yet.</p>'}
   </div>`;
 
   html += `<div class="stats-card">
@@ -1974,17 +2013,7 @@ function renderStats() {
     <div class="stat-row"><span>Most common pressure pivot</span><span class="stat-code">${esc(topPressure || '—')}</span></div>
   </div>`;
 
-  if (lostPatterns.length > 0) {
-    html += `<div class="pattern-card">
-      <div class="stats-title">📌 Actionable Patterns</div>`;
-    lostPatterns.slice(0, 3).forEach(([code, c]) => {
-      html += `<div class="stat-row"><span class="stat-code">${esc(code)}</span><span>${c.o} lost</span></div>`;
-    });
-    html += `<p style="font-size:0.78rem;color:var(--gray);margin-top:8px">Review: One pattern → One action. Zones are preserved here, so F/S-1 and F/S-3 stay separate.</p>
-    </div>`;
-  }
-
-  // Zone-preserving code breakdown
+  // Code breakdown
   html += `<div class="stats-card">
     <div class="stats-title">Pivot Code Breakdown</div>
     <div style="display:grid;grid-template-columns:1fr 52px 52px;gap:4px;font-size:0.68rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;padding:4px 0;border-bottom:2px solid var(--gray-light);margin-bottom:4px">
@@ -2004,6 +2033,40 @@ function renderStats() {
   html += '</div>';
 
   qs('#statsContent').innerHTML = html;
+}
+
+function renderGuide() {
+  const body = qs('#detailCodeGuide');
+  if (!body) return;
+
+  const definitions = new Map();
+  const addDefinition = (opt, use) => {
+    if (!definitions.has(opt.id)) {
+      definitions.set(opt.id, { label: opt.label, uses: [], outcomes: new Set() });
+    }
+    const def = definitions.get(opt.id);
+    if (!def.uses.includes(use)) def.uses.push(use);
+    if (opt.outcome) def.outcomes.add(opt.outcome);
+  };
+
+  Object.entries(MPTS_TABLE.details).forEach(([shot, byMomentum]) => {
+    Object.entries(byMomentum).forEach(([momentum, options]) => {
+      options.forEach(opt => addDefinition(opt, `${momentum}-${shot}`));
+    });
+  });
+  Object.entries(MPTS_TABLE.autoDetails).forEach(([momentum, options]) => {
+    options.forEach(opt => addDefinition(opt, momentum));
+  });
+
+  body.innerHTML = Array.from(definitions.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([code, def]) => {
+      const outcome = def.outcomes.size
+        ? ` <span style="color:var(--gray)">auto ${Array.from(def.outcomes).join('/')}</span>`
+        : '';
+      return `<tr><td>${esc(code)}</td><td>${esc(def.label)}${outcome}</td><td>${esc(def.uses.join(', '))}</td></tr>`;
+    })
+    .join('');
 }
 
 function renderMatchList() {
@@ -2159,12 +2222,17 @@ function validatePointCount(value, points, side) {
 }
 
 function normalizeImportedPoint(pt) {
-  if (!pt || typeof pt !== 'object' || typeof pt.code !== 'string') return null;
-  if (pt.side !== 'player' && pt.side !== 'opponent') return null;
+  if (!pt || typeof pt !== 'object') return null;
+  const mpts = normalizeMptsValue(pt.mpts);
+  if (!mpts) return null;
+  const outcome = mptsOutcomeDef(mpts.outcome);
+  const big = !!pt.big || String(pt.code || '').includes('*');
   return {
-    code: pt.code,
-    side: pt.side,
-    leak: !!pt.leak,
+    code: buildCode({ ...mpts, big }),
+    side: outcome.side,
+    big,
+    leak: false,
+    mpts,
     context: normalizePointContextValue(pt.context),
   };
 }
@@ -2287,6 +2355,7 @@ function swapCurrentServer() {
   const g = curGame(m);
   g.server = isSide(g.server) ? otherSide(g.server) : 'player';
   refreshCurrentGameContexts(m, g);
+  reconcilePendingShotWithServer();
   save();
   renderAll();
   toast(`Current game server: ${g.server === 'player' ? shortName(m.player, 'Player') : shortName(m.opponent, 'Opponent')}`, 'success');
@@ -2378,6 +2447,49 @@ function shortName(name, fallback) {
   const trimmed = String(name || '').trim();
   return trimmed ? trimmed.split(/\s+/)[0] : fallback;
 }
+function mptsById(list, id) {
+  return Array.isArray(list) ? list.find(item => item.id === id) || null : null;
+}
+function mptsMomentumDef(id) {
+  return mptsById(MPTS_TABLE.momentum, id) || { id, code: '', label: id || '', help: '', cls: '' };
+}
+function mptsShotDef(id) {
+  return mptsById(MPTS_TABLE.shots, id) || { id, label: id || '' };
+}
+function mptsDetailDef(shot, momentum, detail) {
+  return mptsById(mptsDetailOptions(momentum, shot), detail) || { id: detail || '', label: detail || '' };
+}
+function mptsOutcomeDef(id) {
+  return mptsById(MPTS_TABLE.outcomes, id) || { id, label: id || '', side: id === 'WIN' ? 'player' : 'opponent' };
+}
+function mptsShotOptions() {
+  const m = cur();
+  const server = m ? currentPointContext(m).server : null;
+  return MPTS_TABLE.shots.filter(shot => {
+    if (shot.id === 'SRV') return server !== 'opponent';
+    if (shot.id === 'RET') return server !== 'player';
+    return true;
+  });
+}
+function reconcilePendingShotWithServer() {
+  if (!pending.shot) return;
+  if (mptsById(mptsShotOptions(), pending.shot)) return;
+  pending.shot = null;
+  pending.detail = null;
+  pending.outcome = null;
+  pending.step = pending.momentum ? 1 : 0;
+}
+function mptsDetailOptions(momentum, shot) {
+  if (MPTS_TABLE.autoDetails[momentum]) return MPTS_TABLE.autoDetails[momentum];
+  const byShot = MPTS_TABLE.details[shot];
+  return byShot && Array.isArray(byShot[momentum]) ? byShot[momentum] : [];
+}
+function hasMpts(pt) {
+  return !!(pt && pt.mpts && pt.mpts.momentum && pt.mpts.shot && pt.mpts.detail && pt.mpts.outcome);
+}
+function mptsKey(pt) {
+  return hasMpts(pt) ? `${pt.mpts.shot}-${pt.mpts.detail}` : '';
+}
 function currentGameLabel(setNumber, gameNumber) {
   return `Current Game: Set ${setNumber}, Game ${gameNumber}`;
 }
@@ -2414,7 +2526,7 @@ function pressureTextTags(pressure) {
 }
 
 function codeForStats(code) {
-  return String(code || '').replace('*','');
+  return String(code || '').replace(/\*/g, '');
 }
 
 function pointServer(pt) {
@@ -2452,6 +2564,68 @@ function statRecordRow(label, points) {
   const won = points.filter(pt => pt.side === 'player').length;
   const lost = points.length - won;
   return `<div class="stat-row"><span>${esc(label)}</span><span><span class="stat-us">${won}</span> – <span class="stat-them">${lost}</span></span></div>`;
+}
+
+function topBadMptsPattern(points) {
+  const bad = points.filter(pt => hasMpts(pt) && pt.mpts.momentum === 'BAD');
+  const counts = {};
+  bad.forEach(pt => {
+    const key = mptsKey(pt);
+    if (!key) return;
+    if (!counts[key]) counts[key] = { count: 0, shot: pt.mpts.shot, detail: pt.mpts.detail, key };
+    counts[key].count++;
+  });
+  const sorted = Object.values(counts).sort((a, b) => b.count - a.count);
+  if (!sorted.length) return null;
+  const top = sorted[0];
+  return {
+    key: top.key,
+    count: top.count,
+    total: bad.length,
+    pct: Math.round((top.count / Math.max(1, bad.length)) * 100),
+    shot: top.shot,
+    detail: top.detail,
+  };
+}
+
+function mptsDirectiveHtml(pattern) {
+  const shot = mptsShotDef(pattern.shot);
+  const detail = mptsDetailDef(pattern.shot, 'BAD', pattern.detail);
+  return `<div class="pattern-card" style="margin-top:8px">
+    <div style="font-size:0.82rem"><strong>Pattern:</strong> ${pattern.pct}% of lost momentum came from <span class="stat-code">${esc(pattern.key)}</span> (${esc(shot.label)} · ${esc(detail.label)}).</div>
+    <div style="font-size:0.82rem;margin-top:6px"><strong>Action:</strong> ${esc(mptsActionFor(pattern.shot, pattern.detail))}</div>
+  </div>`;
+}
+
+function mptsActionFor(shot, detail) {
+  const key = `${shot}-${detail}`;
+  const actionByKey = {
+    'FH-SHT': 'Train forehand cross-court depth with one-meter net and baseline margin.',
+    'BH-SHT': 'Train backhand cross-court depth with one-meter net and baseline margin.',
+    'FH-GRD': 'Run target-discipline reps: heavy cross-court until a clear short ball appears.',
+    'BH-GRD': 'Run target-discipline reps: heavy cross-court until a clear short ball appears.',
+    'FH-DIR': 'Practice direction changes only from balanced contact above net height.',
+    'BH-DIR': 'Practice direction changes only from balanced contact above net height.',
+    'FH-NET': 'Rebuild shape and net clearance on neutral forehands.',
+    'BH-NET': 'Rebuild shape and net clearance on neutral backhands.',
+    'FH-LNG': 'Train spin and finish height to keep attacking balls inside the last meter.',
+    'BH-LNG': 'Train spin and finish height to keep attacking balls inside the last meter.',
+    'FH-WDE': 'Use target cones two feet inside the sideline for rally-ball width control.',
+    'BH-WDE': 'Use target cones two feet inside the sideline for rally-ball width control.',
+    'TRN-AP-': 'Train approach depth through the middle third before closing the net.',
+    'TRN-TGT': 'Rehearse approach-shot target selection against passing-shot lanes.',
+    'TRN-CHO': 'Add a go/no-go cue before moving forward from mid-court.',
+    'NET-VMS': 'Drill easy-volley footwork and quiet hands from inside the service box.',
+    'NET-VSH': 'Practice volley depth targets past the service line.',
+    'NET-PSD': 'Train first-volley positioning and recovery after the approach.',
+    'SRV-DF': 'Simplify the second-serve target and build spin-margin repetitions.',
+    'SRV-SHT': 'Train second-serve depth/body targets to avoid attackable sits.',
+    'SRV-PRE': 'Add one serve-location pattern change per service game.',
+    'RET-PAS': 'Train compact return swings to neutralize second serves deep through the middle.',
+    'RET-NET': 'Raise return net clearance with compact block-return targets.',
+    'RET-LNG': 'Use shorter backswing return reps with deep middle targets.',
+  };
+  return actionByKey[key] || `Train the ${mptsShotDef(shot).label.toLowerCase()} pattern tagged ${detail} with a clear target and repeatable margin.`;
 }
 
 // ============================================================
