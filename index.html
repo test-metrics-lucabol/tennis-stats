@@ -741,6 +741,7 @@
           <button class="btn-code" data-core="A"   onclick="selCore('A')">A<br><small>Ace</small></button>
           <button class="btn-code" data-core="S+"  onclick="selCore('S+')">S+<br><small>Serve+</small></button>
           <button class="btn-code" data-core="DF"  onclick="selCore('DF')">DF<br><small>DblFault</small></button>
+          <button class="btn-code" data-core="UE"  onclick="selCore('UE')">UE<br><small>Unforced</small></button>
           <button class="btn-code" data-core="+1"  onclick="selCore('+1')">+1<br><small>1st Ball</small></button>
           <button class="btn-code" data-core="S"   onclick="selCore('S')">S–<br><small>Setup Err</small></button>
           <button class="btn-code" data-core="T"   onclick="selCore('T')">T–<br><small>Tactical</small></button>
@@ -838,6 +839,7 @@
       <tr><td>A</td><td>Ace / untouched serve</td></tr>
       <tr><td>S+</td><td>Serve-created point or forced return error</td></tr>
       <tr><td>DF</td><td>Double fault</td></tr>
+      <tr><td>UE</td><td>Unforced error by player; opponent won without forcing pressure</td></tr>
       <tr><td>+1</td><td>Wasted first ball after serve or return</td></tr>
       <tr><td>S–<em>zone</em></td><td>Setup error: short, attackable ball</td></tr>
       <tr><td>T–<em>zone</em></td><td>Tactical error: wrong shot, target, or risk</td></tr>
@@ -1030,6 +1032,7 @@ const CORE_ALLOWED_POINT_WINNERS = {
   A: ['player'],
   'S+': ['player'],
   DF: ['opponent'],
+  UE: ['opponent'],
   '+1': ['player', 'opponent'],
   S: ['player', 'opponent'],
   T: ['player', 'opponent'],
@@ -1042,6 +1045,7 @@ const CORE_ALLOWED_SHOTS = {
   A: ['S'],
   'S+': ['S'],
   DF: ['S'],
+  UE: ['F', 'B', 'R', 'V', 'O'],
   '+1': ['F', 'B', 'R'],
   S: ['F', 'B', 'R', 'V', 'O'],
   T: ['F', 'B', 'R', 'V', 'O'],
@@ -1523,7 +1527,7 @@ function updatePreview() {
 
 function recordPoint() {
   if (!pending.shot) { toast('Select a shot marker before recording', 'error'); return; }
-  if (!pending.core) { toast('Select a core code (A, S+, DF, W, etc.) before recording', 'error'); return; }
+  if (!pending.core) { toast('Select a core code (A, S+, DF, UE, W, etc.) before recording', 'error'); return; }
   if (pending.side && !isCoreCodeAllowed(pending.core, pending.side, pending.shot)) {
     toast('Selected code does not match the shot and point winner', 'error');
     return;
