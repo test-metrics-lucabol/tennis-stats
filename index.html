@@ -1308,9 +1308,12 @@ function normalizeStoredPoint(pt) {
 function normalizeMptsValue(value) {
   if (!value || typeof value !== 'object') return null;
   const momentum = mptsById(MPTS_TABLE.momentum, value.momentum) ? value.momentum : null;
-  const shot = mptsById(MPTS_TABLE.shots, value.shot) ? value.shot : null;
   const outcome = mptsById(MPTS_TABLE.outcomes, value.outcome) ? value.outcome : null;
-  if (!momentum || !shot || !outcome) return null;
+  if (!momentum || !outcome) return null;
+  const shot = mptsRequiresShot(momentum)
+    ? (mptsById(MPTS_TABLE.shots, value.shot) ? value.shot : null)
+    : null;
+  if (mptsRequiresShot(momentum) && !shot) return null;
   const detail = mptsDetailOptions(momentum, shot).some(opt => opt.id === value.detail) ? value.detail : null;
   if (!detail) return null;
   return { momentum, shot, detail, outcome };
@@ -1492,6 +1495,19 @@ function mptsSelect(kind, id) {
     pending.shot = null;
     pending.detail = null;
     pending.outcome = null;
+    const autoDetail = mptsAutoDetail(id);
+    if (autoDetail) {
+      pending.detail = autoDetail.id;
+      if (autoDetail.outcome) {
+        if (!mptsById(MPTS_TABLE.outcomes, autoDetail.outcome)) { toast('Unknown automatic outcome', 'error'); return; }
+        pending.outcome = autoDetail.outcome;
+        recordPoint();
+        return;
+      }
+      pending.step = 3;
+      renderMptsStep();
+      return;
+    }
     pending.step = 1;
   } else if (kind === 'shot') {
     if (!mptsById(mptsShotOptions(), id)) { toast('That shot is not available for this server context', 'error'); return; }
@@ -1523,6 +1539,13 @@ function mptsSelect(kind, id) {
 function mptsBack() {
   if (pending.step <= 0) {
     cancelPoint();
+    return;
+  }
+  if (pending.step === 3 && mptsAutoDetail(pending.momentum)) {
+    pending.detail = null;
+    pending.outcome = null;
+    pending.step = 0;
+    renderMptsStep();
     return;
   }
   if (pending.step === 3) pending.outcome = null;
@@ -1595,7 +1618,7 @@ function updatePreview() {
 function recordPoint() {
   const m = cur();
   if (!m) return;
-  if (!pending.momentum || !pending.shot || !pending.detail || !pending.outcome) {
+  if (!pending.momentum || !pending.detail || !pending.outcome || (mptsRequiresShot(pending.momentum) && !pending.shot)) {
     toast('Complete all four pivot screens before recording', 'error');
     return;
   }
@@ -1607,7 +1630,7 @@ function recordPoint() {
   const context = currentPointContext(m, g);
   const mpts = {
     momentum: pending.momentum,
-    shot: pending.shot,
+    shot: pending.shot || null,
     detail: pending.detail,
     outcome: pending.outcome,
   };
@@ -2462,6 +2485,13 @@ function mptsDetailDef(shot, momentum, detail) {
 function mptsOutcomeDef(id) {
   return mptsById(MPTS_TABLE.outcomes, id) || { id, label: id || '', side: id === 'WIN' ? 'player' : 'opponent' };
 }
+function mptsAutoDetail(momentum) {
+  const options = MPTS_TABLE.autoDetails[momentum];
+  return Array.isArray(options) && options.length > 0 ? options[0] : null;
+}
+function mptsRequiresShot(momentum) {
+  return !mptsAutoDetail(momentum);
+}
 function mptsShotOptions() {
   const m = cur();
   const server = m ? currentPointContext(m).server : null;
@@ -2485,10 +2515,11 @@ function mptsDetailOptions(momentum, shot) {
   return byShot && Array.isArray(byShot[momentum]) ? byShot[momentum] : [];
 }
 function hasMpts(pt) {
-  return !!(pt && pt.mpts && pt.mpts.momentum && pt.mpts.shot && pt.mpts.detail && pt.mpts.outcome);
+  return !!(pt && pt.mpts && pt.mpts.momentum && (pt.mpts.shot || !mptsRequiresShot(pt.mpts.momentum)) && pt.mpts.detail && pt.mpts.outcome);
 }
 function mptsKey(pt) {
-  return hasMpts(pt) ? `${pt.mpts.shot}-${pt.mpts.detail}` : '';
+  if (!hasMpts(pt)) return '';
+  return pt.mpts.shot ? `${pt.mpts.shot}-${pt.mpts.detail}` : `${pt.mpts.momentum}-${pt.mpts.detail}`;
 }
 function currentGameLabel(setNumber, gameNumber) {
   return `Current Game: Set ${setNumber}, Game ${gameNumber}`;
