@@ -186,6 +186,16 @@
       text-overflow: ellipsis;
     }
 
+    .match-format {
+      margin-top: 3px;
+      font-size: 0.62rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-align: center;
+      text-transform: uppercase;
+      opacity: 0.82;
+    }
+
     .scorebug-context {
       display: flex;
       align-items: flex-start;
@@ -787,6 +797,13 @@
 
     .form-input:focus { border-color: var(--blue); }
 
+    .form-help {
+      margin-top: 4px;
+      color: var(--gray);
+      font-size: 0.74rem;
+      line-height: 1.4;
+    }
+
     .modal-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
     .modal-btns-single { margin-top: 14px; }
   </style>
@@ -853,6 +870,7 @@
         <div class="context-pressure" id="contextPressure" aria-label="Point pressure"></div>
       </div>
       <div class="match-label" id="matchLabel">Player vs Opponent</div>
+      <div class="match-format" id="matchFormatLabel">Bo3 · Final TB7 · Regular</div>
       <div class="scorebug-points" id="tennisPts" aria-live="polite">0 – 0</div>
       <div class="scorebug-summary" aria-label="Games and sets score">
         <div class="scorebug-stat">
@@ -1047,12 +1065,29 @@
       <input class="form-input" id="inp-date" type="date">
     </div>
     <div class="form-group">
-      <label class="form-label" for="inp-format">Match Format</label>
-      <select class="form-input" id="inp-format">
+      <label class="form-label" for="inp-best-of-sets">Match Length</label>
+      <select class="form-input" id="inp-best-of-sets">
         <option value="3">Best of 3 Sets</option>
         <option value="5">Best of 5 Sets</option>
-        <option value="1">Pro Set (1 Set)</option>
+        <option value="1">One Set</option>
       </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="inp-final-set">Final Set</label>
+      <select class="form-input" id="inp-final-set">
+        <option value="tiebreak7">Tie-break to 7 at 6-6</option>
+        <option value="normal">Normal — win by 2 games</option>
+        <option value="tiebreak10">Tie-break to 10 at 6-6</option>
+      </select>
+      <div class="form-help">Applies to the deciding set. Earlier sets use a 7-point tie-break at 6-6.</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="inp-game-scoring">Game Scoring</label>
+      <select class="form-input" id="inp-game-scoring">
+        <option value="regular">Regular — deuce / advantage</option>
+        <option value="noAd">Golden point — no-ad at deuce</option>
+      </select>
+      <div class="form-help">Golden point means 40-40 is a deciding point; the next point wins the game.</div>
     </div>
     <div class="form-group">
       <label class="form-label" for="inp-first-server">First Server</label>
@@ -1157,6 +1192,7 @@ const AI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${A
 
 // Tennis point labels
 const PTS = ['0', '15', '30', '40'];
+const EXPORT_VERSION = 2;
 
 const MPTS_TABLE = {
   momentum: [
@@ -1401,37 +1437,143 @@ function setScore(m) {
   return { p, o };
 }
 
-/** Count games won in current set (excludes current game if not finished) */
-function gameScore(m) {
-  const s = curSet(m);
+function gameScoreForSet(s) {
   let p = 0, o = 0;
   s.games.forEach(g => { if (g.winner === 'player') p++; else if (g.winner === 'opponent') o++; });
   return { p, o };
 }
 
-/** Format tennis point score */
-function fmtPts(p, o) {
-  p = normalizePointCount(p);
-  o = normalizePointCount(o);
+/** Count games won in current set (excludes current game if not finished) */
+function gameScore(m) {
+  return gameScoreForSet(curSet(m));
+}
 
-  if (p >= 4 || o >= 4) {
-    if (p - o >= 2) return 'Game Us';
-    if (o - p >= 2) return 'Game Them';
+function defaultMatchFormat(bestOfSets = 3) {
+  return {
+    bestOfSets: normalizeBestOfSets(bestOfSets),
+    gameScoring: 'regular',
+    finalSet: { mode: 'tiebreak', tiebreakAt: 6, tiebreakTarget: 7 },
+  };
+}
+
+function normalizeBestOfSets(value) {
+  const sets = Number(value);
+  return [1, 3, 5].includes(sets) ? sets : 3;
+}
+
+function normalizeMatchFormat(value, legacyFormat = 3) {
+  const source = value && typeof value === 'object' ? value : {};
+  const bestOfSets = normalizeBestOfSets(source.bestOfSets !== undefined ? source.bestOfSets : legacyFormat);
+  const gameScoring = source.gameScoring === 'noAd' ? 'noAd' : 'regular';
+  const finalSource = source.finalSet && typeof source.finalSet === 'object' ? source.finalSet : {};
+
+  if (finalSource.mode === 'normal') {
+    return {
+      bestOfSets,
+      gameScoring,
+      finalSet: { mode: 'normal', tiebreakAt: 6, tiebreakTarget: null },
+    };
   }
+
+  const target = [7, 10].includes(Number(finalSource.tiebreakTarget)) ? Number(finalSource.tiebreakTarget) : 7;
+  return {
+    bestOfSets,
+    gameScoring,
+    finalSet: { mode: 'tiebreak', tiebreakAt: 6, tiebreakTarget: target },
+  };
+}
+
+function matchFormat(m) {
+  return normalizeMatchFormat(m && m.matchFormat, m && m.format);
+}
+
+function matchFormatFromInputs() {
+  const bestOfSets = normalizeBestOfSets(qs('#inp-best-of-sets').value);
+  const finalSetValue = qs('#inp-final-set').value;
+  const gameScoring = qs('#inp-game-scoring').value === 'noAd' ? 'noAd' : 'regular';
+  const finalSet = finalSetValue === 'normal'
+    ? { mode: 'normal', tiebreakAt: 6, tiebreakTarget: null }
+    : { mode: 'tiebreak', tiebreakAt: 6, tiebreakTarget: finalSetValue === 'tiebreak10' ? 10 : 7 };
+
+  return { bestOfSets, gameScoring, finalSet };
+}
+
+function formatSummary(formatOrMatch) {
+  const fmt = formatOrMatch && formatOrMatch.matchFormat ? matchFormat(formatOrMatch) : normalizeMatchFormat(formatOrMatch);
+  const length = fmt.bestOfSets === 1 ? '1 set' : `Bo${fmt.bestOfSets}`;
+  const finalSet = fmt.finalSet.mode === 'normal' ? 'Final normal' : `Final TB${fmt.finalSet.tiebreakTarget}`;
+  const scoring = fmt.gameScoring === 'noAd' ? 'Golden point' : 'Regular';
+  return `${length} · ${finalSet} · ${scoring}`;
+}
+
+function setsNeeded(formatOrMatch) {
+  const fmt = formatOrMatch && formatOrMatch.matchFormat ? matchFormat(formatOrMatch) : normalizeMatchFormat(formatOrMatch);
+  return Math.floor(fmt.bestOfSets / 2) + 1;
+}
+
+function isDecidingSet(m) {
+  const needed = setsNeeded(m);
+  const ss = setScore(m);
+  return ss.p === needed - 1 && ss.o === needed - 1;
+}
+
+function isTieBreakGame(g) {
+  return g && g.kind === 'tiebreak';
+}
+
+function tiebreakLabel(g) {
+  return `TB${normalizePointCount(g && g.tiebreakTarget, 7)}`;
+}
+
+/** Format tennis point score */
+function fmtPts(gameOrP, matchOrO) {
+  const g = gameOrP && typeof gameOrP === 'object'
+    ? gameOrP
+    : { pp: gameOrP, op: matchOrO, kind: 'standard' };
+  const fmt = gameOrP && typeof gameOrP === 'object' ? matchFormat(matchOrO) : defaultMatchFormat(3);
+  const p = normalizePointCount(g.pp);
+  const o = normalizePointCount(g.op);
+
+  if (isTieBreakGame(g)) {
+    return `${tiebreakLabel(g)} ${p} – ${o}`;
+  }
+
+  const winner = detectGameWinnerFromCounts(p, o, fmt, 'standard', null);
+  if (winner) return winner === 'player' ? 'Game Us' : 'Game Them';
+
+  if (fmt.gameScoring === 'noAd') {
+    if (p >= 3 && o >= 3) return 'Golden Point';
+    return `${PTS[Math.min(p, 3)]} – ${PTS[Math.min(o, 3)]}`;
+  }
+
   if (p >= 3 && o >= 3) {
     if (p === o) return 'Deuce';
     return p > o ? 'Adv Us' : 'Adv Them';
   }
-  return `${PTS[p]} – ${PTS[o]}`;
+  return `${PTS[Math.min(p, 3)]} – ${PTS[Math.min(o, 3)]}`;
 }
 
-function detectGameWinner(g) {
+function detectGameWinner(g, m) {
   const p = normalizePointCount(g.pp);
   const o = normalizePointCount(g.op);
-  return detectGameWinnerFromCounts(p, o);
+  return detectGameWinnerFromCounts(p, o, matchFormat(m), g.kind, g.tiebreakTarget);
 }
 
-function detectGameWinnerFromCounts(p, o) {
+function detectGameWinnerFromCounts(p, o, format, gameKind = 'standard', tiebreakTarget = null) {
+  const fmt = normalizeMatchFormat(format);
+  if (gameKind === 'tiebreak') {
+    const target = normalizePointCount(tiebreakTarget, 7);
+    if (p >= target && p - o >= 2) return 'player';
+    if (o >= target && o - p >= 2) return 'opponent';
+    return null;
+  }
+
+  if (fmt.gameScoring === 'noAd') {
+    if (p >= 4 && p > o) return 'player';
+    if (o >= 4 && o > p) return 'opponent';
+    return null;
+  }
+
   if (p >= 4 || o >= 4) {
     if (p - o >= 2) return 'player';
     if (o - p >= 2) return 'opponent';
@@ -1440,28 +1582,75 @@ function detectGameWinnerFromCounts(p, o) {
 }
 
 function newSet(server = null)  { return { games: [newGame(server)], winner: null }; }
-function newGame(server = null) { return { points: [], pp: 0, op: 0, winner: null, server: isSide(server) ? server : null }; }
+function newGame(server = null, kind = 'standard', tiebreakTarget = null) {
+  const normalizedKind = kind === 'tiebreak' ? 'tiebreak' : 'standard';
+  const normalizedServer = isSide(server) ? server : null;
+  return {
+    kind: normalizedKind,
+    points: [],
+    pp: 0,
+    op: 0,
+    winner: null,
+    server: normalizedServer,
+    tiebreakTarget: normalizedKind === 'tiebreak' ? normalizePointCount(tiebreakTarget, 7) : null,
+    initialTiebreakServer: normalizedKind === 'tiebreak' ? normalizedServer : null,
+  };
+}
+function newTiebreakGame(server, target) { return newGame(server, 'tiebreak', target); }
 
 function normalizeStoredMatches() {
   let changed = false;
   matches.forEach(m => {
-    if (!m || typeof m !== 'object' || !Array.isArray(m.sets)) return;
-    if (!isSide(m.firstServer)) {
-      if (m.firstServer !== null) changed = true;
-      m.firstServer = null;
-    }
-    m.sets.forEach(s => {
-      if (!s || typeof s !== 'object' || !Array.isArray(s.games)) return;
-      s.games.forEach(g => {
-        if (g && typeof g === 'object') changed = normalizeGame(g) || changed;
-      });
-    });
+    changed = normalizeMatchRecord(m) || changed;
   });
   return changed;
 }
 
+function normalizeMatchRecord(m) {
+  let changed = false;
+  if (!m || typeof m !== 'object' || !Array.isArray(m.sets)) return false;
+
+  const normalizedFormat = normalizeMatchFormat(m.matchFormat, m.format);
+  if (JSON.stringify(m.matchFormat) !== JSON.stringify(normalizedFormat)) {
+    m.matchFormat = normalizedFormat;
+    changed = true;
+  }
+  if (m.format !== normalizedFormat.bestOfSets) {
+    m.format = normalizedFormat.bestOfSets;
+    changed = true;
+  }
+  if (!isSide(m.firstServer)) {
+    if (m.firstServer !== null) changed = true;
+    m.firstServer = null;
+  }
+  m.sets.forEach(s => {
+    if (!s || typeof s !== 'object' || !Array.isArray(s.games)) return;
+    s.games.forEach(g => {
+      if (g && typeof g === 'object') changed = normalizeGame(g) || changed;
+    });
+    changed = normalizeActiveSetTiebreak(m, s) || changed;
+  });
+  return changed;
+}
+
+function normalizeActiveSetTiebreak(m, s) {
+  if (!s || s.winner || !Array.isArray(s.games) || s.games.length === 0) return false;
+  const g = s.games[s.games.length - 1];
+  if (!g || g.winner || g.points.length > 0 || isTieBreakGame(g)) return false;
+  if (!shouldStartSetTiebreak(m, s)) return false;
+  g.kind = 'tiebreak';
+  g.tiebreakTarget = tiebreakTargetForSet(m);
+  g.initialTiebreakServer = isSide(g.server) ? g.server : null;
+  return true;
+}
+
 function normalizeGame(g) {
   let changed = false;
+  const kind = g.kind === 'tiebreak' ? 'tiebreak' : 'standard';
+  if (g.kind !== kind) {
+    g.kind = kind;
+    changed = true;
+  }
   if (!Array.isArray(g.points)) {
     g.points = [];
     changed = true;
@@ -1474,6 +1663,27 @@ function normalizeGame(g) {
   if (!isSide(g.server)) {
     if (g.server !== null) changed = true;
     g.server = null;
+  }
+  if (g.kind === 'tiebreak') {
+    const target = [7, 10].includes(Number(g.tiebreakTarget)) ? Number(g.tiebreakTarget) : 7;
+    if (g.tiebreakTarget !== target) {
+      g.tiebreakTarget = target;
+      changed = true;
+    }
+    const initial = isSide(g.initialTiebreakServer) ? g.initialTiebreakServer : g.server;
+    if (g.initialTiebreakServer !== initial) {
+      g.initialTiebreakServer = initial;
+      changed = true;
+    }
+  } else {
+    if (g.tiebreakTarget !== null) {
+      g.tiebreakTarget = null;
+      changed = true;
+    }
+    if (g.initialTiebreakServer !== null) {
+      g.initialTiebreakServer = null;
+      changed = true;
+    }
   }
   g.points.forEach(pt => {
     if (pt && typeof pt === 'object') changed = normalizeStoredPoint(pt) || changed;
@@ -1563,6 +1773,10 @@ function totalGamesInMatch(m) {
 
 function nextServerAfterCurrentGame(m) {
   const g = curGame(m);
+  if (isTieBreakGame(g)) {
+    const firstServer = isSide(g.initialTiebreakServer) ? g.initialTiebreakServer : g.server;
+    return isSide(firstServer) ? otherSide(firstServer) : null;
+  }
   if (g && isSide(g.server)) return otherSide(g.server);
   if (!isSide(m.firstServer)) return null;
   const nextGameIndex = totalGamesInMatch(m);
@@ -1576,6 +1790,7 @@ function currentPointContext(m, g = curGame(m), serveAttempt = currentPendingSer
 function buildPointContext(m, g, playerPoints, opponentPoints, serveAttempt = 'unknown') {
   const gs = gameScore(m);
   const ss = setScore(m);
+  const server = pointServerForScore(g, playerPoints, opponentPoints);
   const scoreBefore = {
     playerPoints,
     opponentPoints,
@@ -1586,50 +1801,85 @@ function buildPointContext(m, g, playerPoints, opponentPoints, serveAttempt = 'u
   };
 
   return {
-    server: isSide(g.server) ? g.server : null,
+    server,
     serveAttempt: normalizeServeAttempt(serveAttempt),
     scoreBefore,
-    pressure: pressureTagsForScore(m, scoreBefore, g.server),
+    pressure: pressureTagsForScore(m, scoreBefore, g),
   };
 }
 
-function pressureTagsForScore(m, score, server) {
+function pointServerForScore(g, playerPoints, opponentPoints) {
+  if (!g) return null;
+  if (isTieBreakGame(g)) return tiebreakServer(g, normalizePointCount(playerPoints) + normalizePointCount(opponentPoints));
+  return isSide(g.server) ? g.server : null;
+}
+
+function tiebreakServer(g, totalPoints = null) {
+  const firstServer = isSide(g.initialTiebreakServer) ? g.initialTiebreakServer : g.server;
+  if (!isSide(firstServer)) return null;
+  const total = totalPoints === null ? normalizePointCount(g.pp) + normalizePointCount(g.op) : normalizePointCount(totalPoints);
+  if (total === 0) return firstServer;
+  const blocksAfterFirst = Math.floor((total - 1) / 2);
+  return blocksAfterFirst % 2 === 0 ? otherSide(firstServer) : firstServer;
+}
+
+function pressureTagsForScore(m, score, g) {
   const tags = [];
   const p = normalizePointCount(score.playerPoints);
   const o = normalizePointCount(score.opponentPoints);
+  const fmt = matchFormat(m);
+  const server = pointServerForScore(g, p, o);
 
-  if (p >= 3 && o >= 3) {
+  if (!isTieBreakGame(g) && p >= 3 && o >= 3) {
     tags.push(p === o ? 'deuce' : 'advantage');
   }
 
-  const gamePointSide = sideThatWouldWinGame(p, o);
-  if (!gamePointSide) return tags;
+  const gamePointSides = sidesThatWouldWinGame(g, p, o, fmt);
+  if (gamePointSides.length === 0) return tags;
 
-  if (isSide(server) && otherSide(server) === gamePointSide) tags.push('break_point');
-  tags.push('game_point');
+  if (!isTieBreakGame(g)) {
+    if (isSide(server) && gamePointSides.includes(otherSide(server))) tags.push('break_point');
+    tags.push('game_point');
+  }
 
-  if (sideWouldWinSet(m, score, gamePointSide)) {
+  if (gamePointSides.some(side => sideWouldWinSet(m, score, side, g))) {
     tags.unshift('set_point');
-    if (sideWouldWinMatch(m, score, gamePointSide)) tags.unshift('match_point');
+    if (gamePointSides.some(side => sideWouldWinMatch(m, score, side, g))) tags.unshift('match_point');
   }
 
   return Array.from(new Set(tags));
 }
 
-function sideThatWouldWinGame(playerPoints, opponentPoints) {
-  if (detectGameWinnerFromCounts(playerPoints + 1, opponentPoints) === 'player') return 'player';
-  if (detectGameWinnerFromCounts(playerPoints, opponentPoints + 1) === 'opponent') return 'opponent';
-  return null;
+function sidesThatWouldWinGame(g, playerPoints, opponentPoints, format) {
+  const sides = [];
+  if (detectGameWinnerFromCounts(playerPoints + 1, opponentPoints, format, g && g.kind, g && g.tiebreakTarget) === 'player') sides.push('player');
+  if (detectGameWinnerFromCounts(playerPoints, opponentPoints + 1, format, g && g.kind, g && g.tiebreakTarget) === 'opponent') sides.push('opponent');
+  return sides;
 }
 
-function sideWouldWinSet(m, score, side) {
+function sideThatWouldWinGame(playerPoints, opponentPoints) {
+  const sides = sidesThatWouldWinGame({ kind: 'standard' }, playerPoints, opponentPoints, defaultMatchFormat(3));
+  return sides[0] || null;
+}
+
+function sideWouldWinSet(m, score, side, g = curGame(m)) {
+  const fmt = matchFormat(m);
+  if (isTieBreakGame(g)) {
+    const p = normalizePointCount(score.playerPoints) + (side === 'player' ? 1 : 0);
+    const o = normalizePointCount(score.opponentPoints) + (side === 'opponent' ? 1 : 0);
+    return detectGameWinnerFromCounts(p, o, fmt, 'tiebreak', g.tiebreakTarget) === side;
+  }
+
   const p = normalizePointCount(score.playerGames) + (side === 'player' ? 1 : 0);
   const o = normalizePointCount(score.opponentGames) + (side === 'opponent' ? 1 : 0);
-  return detectSetWinner(p, o) === side;
+  if (p >= 6 && p - o >= 2) return side === 'player';
+  if (o >= 6 && o - p >= 2) return side === 'opponent';
+  return false;
 }
 
-function sideWouldWinMatch(m, score, side) {
-  const needed = Math.ceil(m.format / 2);
+function sideWouldWinMatch(m, score, side, g = curGame(m)) {
+  if (!sideWouldWinSet(m, score, side, g)) return false;
+  const needed = setsNeeded(m);
   const setsWon = normalizePointCount(side === 'player' ? score.playerSets : score.opponentSets) + 1;
   return setsWon >= needed;
 }
@@ -1670,12 +1920,13 @@ function createMatch() {
   const player   = qs('#inp-player').value.trim()   || 'Player';
   const opponent = qs('#inp-opponent').value.trim()  || 'Opponent';
   const date     = qs('#inp-date').value             || today();
-  const format   = parseInt(qs('#inp-format').value) || 3;
+  const matchFmt = matchFormatFromInputs();
+  const format   = matchFmt.bestOfSets;
   const firstServer = qs('#inp-first-server').value === 'opponent' ? 'opponent' : 'player';
 
   const m = {
     id: Date.now().toString(),
-    player, opponent, date, format, firstServer,
+    player, opponent, date, format, matchFormat: matchFmt, firstServer,
     status: 'active',
     sets: [newSet(firstServer)],
   };
@@ -1903,7 +2154,7 @@ function recordPoint() {
   g.points.push(pt);
   if (outcome.side === 'player') g.pp++; else g.op++;
 
-  const gameWinner = detectGameWinner(g);
+  const gameWinner = detectGameWinner(g, m);
   if (gameWinner) finishCurrentGame(m, gameWinner);
 
   save();
@@ -1990,14 +2241,12 @@ function finishCurrentGame(m, winner) {
   g.winner = winner;
   const nextServer = nextServerAfterCurrentGame(m);
 
-  // Check set completion
-  const gs = gameScore(m); // computed after game is marked
-  let setWinner = detectSetWinner(gs.p, gs.o);
+  const setWinner = detectSetWinner(m, s);
 
   if (setWinner) {
     s.winner = setWinner;
     const ss = setScore(m);
-    const needed = Math.ceil(m.format / 2);
+    const needed = setsNeeded(m);
 
     if (ss.p >= needed || ss.o >= needed) {
       m.status  = 'completed';
@@ -2005,6 +2254,8 @@ function finishCurrentGame(m, winner) {
     } else {
       m.sets.push(newSet(nextServer));
     }
+  } else if (shouldStartSetTiebreak(m, s)) {
+    s.games.push(newTiebreakGame(nextServer, tiebreakTargetForSet(m)));
   } else {
     s.games.push(newGame(nextServer));
   }
@@ -2012,12 +2263,33 @@ function finishCurrentGame(m, winner) {
   return true;
 }
 
-function detectSetWinner(p, o) {
+function detectSetWinner(m, s) {
+  const lastGame = s && s.games ? s.games[s.games.length - 1] : null;
+  if (isTieBreakGame(lastGame) && lastGame.winner) return lastGame.winner;
+
+  const gs = gameScoreForSet(s);
+  const p = gs.p;
+  const o = gs.o;
   if (p >= 6 && p - o >= 2) return 'player';
   if (o >= 6 && o - p >= 2) return 'opponent';
-  if (p === 7)               return 'player';
-  if (o === 7)               return 'opponent';
   return null;
+}
+
+function tiebreakTargetForSet(m) {
+  const fmt = matchFormat(m);
+  if (isDecidingSet(m)) {
+    return fmt.finalSet.mode === 'tiebreak' ? fmt.finalSet.tiebreakTarget : null;
+  }
+  return 7;
+}
+
+function shouldStartSetTiebreak(m, s) {
+  if (!s || s.winner || !Array.isArray(s.games) || s.games.length === 0) return false;
+  const lastGame = s.games[s.games.length - 1];
+  if (isTieBreakGame(lastGame)) return false;
+  const gs = gameScoreForSet(s);
+  if (gs.p !== 6 || gs.o !== 6) return false;
+  return tiebreakTargetForSet(m) !== null;
 }
 
 // ============================================================
@@ -2057,7 +2329,8 @@ function renderRecord() {
     qs('#codeBuilder').classList.remove('hidden');
   }
 
-  qs('#matchLabel').textContent    = `${m.player} vs ${m.opponent} — ${m.date}`;
+  qs('#matchLabel').textContent = `${m.player} vs ${m.opponent} — ${m.date}`;
+  qs('#matchFormatLabel').textContent = formatSummary(m);
 
   const ss = setScore(m);
   qs('#pSets').textContent = ss.p;
@@ -2068,7 +2341,7 @@ function renderRecord() {
   qs('#oGames').textContent = gs.o;
 
   const g = curGame(m);
-  qs('#tennisPts').textContent = fmtPts(g.pp, g.op);
+  qs('#tennisPts').textContent = fmtPts(g, m);
   renderPointContext(m);
   if (!completed) renderMptsStep();
   renderCurrentGameSheet(m);
@@ -2116,8 +2389,8 @@ function renderCurrentGameSheet(m) {
       <span>${esc(m.player)}</span>
       <span>${esc(m.opponent)}</span>
     </div>
-    <div class="sheet-scroll" id="recordSheetScroll">
-      <div class="sheet-game-sep">${currentGameLabel(setNumber, gameNumber)}</div>`;
+      <div class="sheet-scroll" id="recordSheetScroll">
+      <div class="sheet-game-sep">${currentGameLabel(setNumber, gameNumber, g)}</div>`;
 
   if (g.points.length === 0) {
     html += '<div class="sheet-empty">No points recorded in this game yet.</div>';
@@ -2138,9 +2411,10 @@ function renderCurrentGameSheet(m) {
   }
 
   if (g.winner) {
+    const gameLabel = isTieBreakGame(g) ? tiebreakLabel(g) : 'Game';
     const winLabel = g.winner === 'player'
-      ? `Game ${esc(shortName(m.player, 'Player'))}`
-      : `Game ${esc(shortName(m.opponent, 'Opponent'))}`;
+      ? `${gameLabel} ${esc(shortName(m.player, 'Player'))}`
+      : `${gameLabel} ${esc(shortName(m.opponent, 'Opponent'))}`;
     html += `<div class="sheet-game-sep">── ${winLabel} (${g.pp}–${g.op} pts) ──</div>`;
   }
 
@@ -2189,9 +2463,10 @@ function renderSheet() {
         html += '</div>';
       });
       if (g.winner) {
+        const gameLabel = isTieBreakGame(g) ? tiebreakLabel(g) : 'Game';
         const winLabel = g.winner === 'player'
-          ? `Game ${esc(shortName(m.player, 'Player'))}`
-          : `Game ${esc(shortName(m.opponent, 'Opponent'))}`;
+          ? `${gameLabel} ${esc(shortName(m.player, 'Player'))}`
+          : `${gameLabel} ${esc(shortName(m.opponent, 'Opponent'))}`;
         html += `<div class="sheet-game-sep">── ${winLabel} (${g.pp}–${g.op} pts) ──</div>`;
       }
     });
@@ -2285,6 +2560,10 @@ function renderStats() {
   }
 
   html += `<div class="stat-row">
+    <span>Format</span>
+    <span>${esc(formatSummary(m))}</span>
+  </div>
+  <div class="stat-row">
     <span>Sets</span>
     <span><span class="stat-us">${ss.p}</span> – <span class="stat-them">${ss.o}</span></span>
   </div>
@@ -2476,7 +2755,7 @@ function renderMatchList() {
     html += `<div class="match-card${isActive ? ' current' : ''}" onclick="loadMatch('${m.id}')">
       <div style="flex:1;min-width:0">
         <div class="match-vs">${esc(m.player)} vs ${esc(m.opponent)}${isActive ? ' 🟢' : ''}</div>
-        <div class="match-meta">${m.date} · Best of ${m.format}${done ? ' · ✓ Complete' : ''}</div>
+        <div class="match-meta">${esc(m.date)} · ${esc(formatSummary(m))}${done ? ' · ✓ Complete' : ''}</div>
       </div>
       <div class="match-score${done ? ' match-done' : ''}">${ss.p}–${ss.o}</div>
       <div class="match-actions">
@@ -2507,7 +2786,7 @@ function exportAllMatches() {
 function downloadMatchesFile(matchList, filename) {
   const data = {
     app: 'Tennis Pivot Tracker',
-    version: 1,
+    version: EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
     matches: matchList,
   };
@@ -2572,18 +2851,21 @@ function normalizeImportedMatch(m, usedIds) {
   if (!m || typeof m !== 'object') throw new Error('Import file contains an invalid match');
   const id = resolveImportedId(m.id, usedIds);
   const date = isValidMatchDate(m.date) ? m.date : today();
+  const importedFormat = normalizeMatchFormat(m.matchFormat, m.format);
   const normalized = {
     id,
     player: typeof m.player === 'string' && m.player.trim() ? m.player : 'Player',
     opponent: typeof m.opponent === 'string' && m.opponent.trim() ? m.opponent : 'Opponent',
     date,
-    format: [1, 3, 5].includes(Number(m.format)) ? Number(m.format) : 3,
+    format: importedFormat.bestOfSets,
+    matchFormat: importedFormat,
     firstServer: isSide(m.firstServer) ? m.firstServer : null,
     status: m.status === 'completed' ? 'completed' : 'active',
     sets: Array.isArray(m.sets) ? m.sets.map(normalizeImportedSet).filter(Boolean) : [],
   };
   if (m.winner === 'player' || m.winner === 'opponent') normalized.winner = m.winner;
   if (normalized.sets.length === 0) throw new Error('Import file contains a match with no sets');
+  normalizeMatchRecord(normalized);
   return normalized;
 }
 
@@ -2601,11 +2883,14 @@ function normalizeImportedGame(g) {
   if (!g || typeof g !== 'object') return null;
   const points = Array.isArray(g.points) ? g.points.map(normalizeImportedPoint).filter(Boolean) : [];
   return {
+    kind: g.kind === 'tiebreak' ? 'tiebreak' : 'standard',
     points,
     pp: validatePointCount(g.pp, points, 'player'),
     op: validatePointCount(g.op, points, 'opponent'),
     winner: g.winner === 'player' || g.winner === 'opponent' ? g.winner : null,
     server: isSide(g.server) ? g.server : null,
+    tiebreakTarget: [7, 10].includes(Number(g.tiebreakTarget)) ? Number(g.tiebreakTarget) : null,
+    initialTiebreakServer: isSide(g.initialTiebreakServer) ? g.initialTiebreakServer : null,
   };
 }
 
@@ -2698,7 +2983,7 @@ function buildScoreSheetText(m, options) {
   const playerName = anonymize ? 'Player' : m.player;
   const opponentName = anonymize ? 'Opponent' : m.opponent;
   const COL = 24;
-  let txt = `${playerName} vs ${opponentName} — ${m.date}\n\n`;
+  let txt = `${playerName} vs ${opponentName} — ${m.date}\n${formatSummary(m)}\n\n`;
   txt += `${(anonymize ? 'Player' : 'Our Player').padEnd(COL)}| Opponent\n`;
   txt += `${'-'.repeat(COL)}|${'-'.repeat(COL)}\n`;
 
@@ -2717,7 +3002,8 @@ function buildScoreSheetText(m, options) {
       });
       if (g.winner) {
         const wn = g.winner === 'player' ? playerName : opponentName;
-        txt += `${'-'.repeat(COL)}  Game ${wn}\n`;
+        const gameLabel = isTieBreakGame(g) ? tiebreakLabel(g) : 'Game';
+        txt += `${'-'.repeat(COL)}  ${gameLabel} ${wn}\n`;
       }
     });
     if (s.winner) {
@@ -2758,6 +3044,7 @@ function swapCurrentServer() {
   if (!m || m.status === 'completed') return;
   const g = curGame(m);
   g.server = isSide(g.server) ? otherSide(g.server) : 'player';
+  if (isTieBreakGame(g)) g.initialTiebreakServer = g.server;
   refreshCurrentGameContexts(m, g);
   reconcilePendingShotWithServer();
   save();
@@ -2821,7 +3108,9 @@ function showNewMatchModal() {
   qs('#inp-player').value   = '';
   qs('#inp-opponent').value = '';
   qs('#inp-date').value     = today();
-  qs('#inp-format').value   = '3';
+  qs('#inp-best-of-sets').value = '3';
+  qs('#inp-final-set').value = 'tiebreak7';
+  qs('#inp-game-scoring').value = 'regular';
   qs('#inp-first-server').value = 'player';
   openModal('modalNewMatch');
 }
@@ -2903,8 +3192,9 @@ function mptsKey(pt) {
   if (!hasMpts(pt)) return '';
   return pt.mpts.shot ? `${pt.mpts.shot}-${pt.mpts.detail}` : `${pt.mpts.momentum}-${pt.mpts.detail}`;
 }
-function currentGameLabel(setNumber, gameNumber) {
-  return `Current Game: Set ${setNumber}, Game ${gameNumber}`;
+function currentGameLabel(setNumber, gameNumber, g = null) {
+  const gameLabel = isTieBreakGame(g) ? `${tiebreakLabel(g)} Tie-break` : `Game ${gameNumber}`;
+  return `Current Game: Set ${setNumber}, ${gameLabel}`;
 }
 function updateRecordSheetStatus(message) {
   const el = qs('#recordSheetStatus');
@@ -3276,14 +3566,15 @@ function buildAiCoachPayload(m, mode = getAiMode()) {
     match: {
       players: { player: 'Player', opponent: 'Opponent' },
       status: m.status,
-      format: m.format,
+      format: formatSummary(m),
+      matchFormat: matchFormat(m),
       winner: m.winner || null,
       setScore: { player: ss.p, opponent: ss.o },
       currentSetGameScore: { player: gs.p, opponent: gs.o },
       currentGamePointScore: {
         player: normalizePointCount(g.pp),
         opponent: normalizePointCount(g.op),
-        label: fmtPts(g.pp, g.op),
+        label: fmtPts(g, m),
       },
     },
     summary: {
