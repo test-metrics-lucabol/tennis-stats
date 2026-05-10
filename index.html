@@ -3093,9 +3093,13 @@ function buildAiCoachPrompt(payload, mode = getAiMode()) {
     ]
     : [
       'Mode: Concise live-match coaching.',
-      'Return 3 to 5 hyphen bullets only, no intro and no conclusion.',
-      'Each bullet must use a pattern -> action format that can be used during a match.',
+      'Return exactly 4 hyphen bullets, no intro and no conclusion.',
+      'Use distinct evidence buckets in this order when data exists: Biggest leak, Serve/return, Pressure or big points, Stabilizer or positive pattern.',
+      'Do not repeat the same code, stat, or pattern across bullets unless it is the only meaningful signal.',
+      'Each bullet must use this format: Bucket: evidence -> action.',
+      'If a bucket has thin data, say "thin signal" and give a conservative action instead of inventing a pattern.',
       'Keep each action concrete, short, and command-like, such as "spin higher", "aim deep middle", or "block the return".',
+      'Prefer actionable point-code evidence from codeBreakdown, serveReturn, pressure, summary.shotLeak, and scoreSheet.text.',
     ];
   return [
     ...common,
@@ -3114,7 +3118,7 @@ function aiOutputMode(mode) {
     : {
       mode: 'concise',
       use: 'During-match coaching.',
-      format: '3 to 5 pattern -> action bullets only.',
+      format: 'Exactly 4 distinct Bucket: evidence -> action bullets.',
     };
 }
 
