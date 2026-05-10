@@ -122,6 +122,7 @@
     .btn-secondary{ background: #e4e8ef;      color: var(--text);  }
     .btn-sm       { padding: 7px 10px; font-size: 0.78rem; border-radius: 7px; }
     .btn-xs       { padding: 5px 8px;  font-size: 0.72rem; border-radius: 6px; }
+    .btn-icon     { width: 34px; padding-left: 0; padding-right: 0; }
     .btn-full     { width: 100%; display: block; }
     .btn-header   { background: rgba(255,255,255,0.2); color: var(--white); border: 1px solid rgba(255,255,255,0.4); }
 
@@ -1015,17 +1016,21 @@
 </div>
 
 <!-- ============================================================
-     MODAL: FORGET AI KEY CONFIRM
+     MODAL: AI SETTINGS
 ============================================================ -->
-<div class="modal-overlay" id="modalForgetAiKey">
+<div class="modal-overlay" id="modalAiSettings">
   <div class="modal">
-    <h2>Forget Gemini API Key?</h2>
+    <h2>AI Coach Settings</h2>
     <p style="font-size:0.84rem;color:var(--gray);margin-bottom:14px">
-      This removes the saved Gemini API key from this browser. You will need to paste it again before using AI Coach.
+      Your Gemini API key is stored only in this browser. Paste a new key below to replace the saved one.
     </p>
+    <div class="form-group">
+      <label class="form-label" for="aiSettingsApiKeyInput">Gemini API Key</label>
+      <input class="form-input" id="aiSettingsApiKeyInput" type="password" placeholder="Paste a new Gemini API key" autocomplete="off">
+    </div>
     <div class="modal-btns">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-opponent" onclick="forgetAiApiKey()">Forget Key</button>
+      <button class="btn btn-primary" onclick="saveAiApiKeyFromSettings()">Save Key</button>
     </div>
   </div>
 </div>
@@ -1061,7 +1066,7 @@ const STORAGE_KEY = 'tennis_pivot_tracker_matches_v2';
 const STORAGE_ID  = 'tennis_pivot_tracker_currentId';
 const AI_KEY_STORAGE = 'tennis_pivot_tracker_gemini_api_key';
 const AI_MODE_STORAGE = 'tennis_pivot_tracker_ai_mode';
-const AI_MODEL = 'gemini-3.1-pro-preview';
+const AI_MODEL = 'gemini-pro-latest';
 const AI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent`;
 
 // Tennis point labels
@@ -1252,16 +1257,6 @@ function setAiApiKey(value) {
     return true;
   } catch(e) {
     console.warn('Tennis Pivot Tracker: Failed to save Gemini API key in browser storage.', e);
-    return false;
-  }
-}
-
-function removeAiApiKey() {
-  try {
-    localStorage.removeItem(AI_KEY_STORAGE);
-    return true;
-  } catch(e) {
-    console.warn('Tennis Pivot Tracker: Failed to remove Gemini API key from browser storage.', e);
     return false;
   }
 }
@@ -2228,7 +2223,14 @@ function renderAiCoach() {
   }
 
   if (!m) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">AI</div><div class="empty-text">No active match. Start one to use AI Coach.</div></div>';
+    el.innerHTML = `<div class="stats-card">
+      <div class="stats-title">AI Coach — ${esc(AI_MODEL)}</div>
+      <div class="stat-row"><span>API key</span><span style="font-weight:700;color:var(--green-dark)">Saved locally</span></div>
+      <div class="ai-actions">
+        <button class="btn btn-secondary btn-sm btn-icon" onclick="openAiSettings()" aria-label="AI Coach settings" title="AI Coach settings">⚙</button>
+      </div>
+    </div>
+    <div class="empty"><div class="empty-icon">AI</div><div class="empty-text">No active match. Start one to use AI Coach.</div></div>`;
     return;
   }
 
@@ -2250,7 +2252,7 @@ function renderAiCoach() {
     <div class="ai-actions">
       <button class="btn btn-primary btn-sm" onclick="requestAiCoachSummary()" ${disabled}>${buttonLabel}</button>
       ${aiModeToggleHtml(mode)}
-      <button class="btn btn-secondary btn-sm" onclick="askForgetAiApiKey()">Forget Key</button>
+      <button class="btn btn-secondary btn-sm btn-icon" onclick="openAiSettings()" aria-label="AI Coach settings" title="AI Coach settings">⚙</button>
     </div>
     ${all.length === 0 ? '<p class="ai-note">Record at least one point before generating a summary.</p>' : ''}
   </div>
@@ -2881,35 +2883,63 @@ function mptsActionFor(shot, detail) {
 // AI COACH
 // ============================================================
 
+function resetAiCoachState() {
+  return { matchId: null, pointCount: 0, mode: getAiMode(), loading: false, text: '', error: '' };
+}
+
 function saveAiApiKeyFromInput() {
   const input = qs('#aiApiKeyInput');
-  const key = input ? input.value.trim() : '';
-  if (!key) {
-    toast('Enter a Gemini API key', 'error');
-    return;
+  saveAiApiKeyValue(input ? input.value : '', 'Gemini API key saved in this browser');
+}
+
+function saveAiApiKeyFromSettings() {
+  const input = qs('#aiSettingsApiKeyInput');
+  if (saveAiApiKeyValue(input ? input.value : '', 'Gemini API key updated')) {
+    closeModal();
   }
-  if (!setAiApiKey(key)) {
+}
+
+function saveAiApiKeyValue(value, successMessage) {
+  const validation = validateGeminiApiKey(value);
+  if (validation.error) {
+    toast(validation.error, 'error');
+    return false;
+  }
+  if (!setAiApiKey(validation.key)) {
     toast('Could not save API key in this browser', 'error');
-    return;
+    return false;
   }
-  aiCoach = { matchId: null, pointCount: 0, mode: getAiMode(), loading: false, text: '', error: '' };
+  aiCoach = resetAiCoachState();
   renderAiCoach();
-  toast('Gemini API key saved in this browser', 'success');
+  toast(successMessage, 'success');
+  return true;
 }
 
-function forgetAiApiKey() {
-  if (!removeAiApiKey()) {
-    toast('Could not remove API key', 'error');
-    return;
+function validateGeminiApiKey(value) {
+  const key = String(value || '').trim();
+  if (!key) return { key, error: 'Enter a Gemini API key' };
+  if (/\s/.test(key)) return { key, error: 'Gemini API keys cannot contain spaces or line breaks' };
+  if (key.length < 30) return { key, error: 'That key looks too short for a Gemini API key' };
+  if (key.length > 80) return { key, error: 'That key looks too long for a Gemini API key' };
+  if (!/^[A-Za-z0-9_-]+$/.test(key)) {
+    return { key, error: 'Gemini API keys can only contain letters, numbers, hyphens, and underscores' };
   }
-  aiCoach = { matchId: null, pointCount: 0, mode: getAiMode(), loading: false, text: '', error: '' };
-  closeModal();
-  renderAiCoach();
-  toast('Gemini API key removed', 'success');
+  if (!/^AIza[A-Za-z0-9_-]{35}$/.test(key)) {
+    return { key, error: 'Gemini API keys from Google AI Studio usually start with AIza and are 39 characters long' };
+  }
+  return { key, error: '' };
 }
 
-function askForgetAiApiKey() {
-  openModal('modalForgetAiKey');
+function openAiSettings() {
+  const input = qs('#aiSettingsApiKeyInput');
+  if (input) {
+    input.value = '';
+    input.placeholder = getAiApiKey().trim()
+      ? 'Paste a new Gemini API key to replace saved key'
+      : 'Paste your Gemini API key';
+  }
+  openModal('modalAiSettings');
+  if (input) input.focus();
 }
 
 function aiModeToggleHtml(mode) {
@@ -3081,6 +3111,7 @@ function buildAiCoachPrompt(payload, mode = getAiMode()) {
     'Input is anonymized JSON from a player-centric MPTS tracker. It is not full match charting or full shot-by-shot charting.',
     'Use only the data provided. Do not invent strokes, scores, tactics, injuries, emotions, or opponent tendencies not supported by the data.',
     'Prioritize repeated patterns and coachable actions over isolated single-point events.',
+    'Do not use the phrase "momentum loss" or variants like "lost momentum"; use "lost points", "BAD pivots", or "points where the player gave up control" instead.',
     'If the sample is thin, say so and keep the advice conservative.',
   ];
   const modeInstructions = normalizeAiMode(mode) === 'verbose'
