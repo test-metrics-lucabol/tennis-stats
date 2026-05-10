@@ -29,7 +29,8 @@
 
 ## Quick start
 
-- Open `index.html` in a modern browser.
+- Easiest: open <https://tennis-stats-t4eb.onrender.com/>.
+- Local: open `index.html` in a modern browser.
 - Go to **Matches** -> **+ New Match**.
 - Pick the format, scoring rules, and first server.
 - Chart points in **Record**.
