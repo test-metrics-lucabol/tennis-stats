@@ -1014,6 +1014,22 @@
   </div>
 </div>
 
+<!-- ============================================================
+     MODAL: FORGET AI KEY CONFIRM
+============================================================ -->
+<div class="modal-overlay" id="modalForgetAiKey">
+  <div class="modal">
+    <h2>Forget Gemini API Key?</h2>
+    <p style="font-size:0.84rem;color:var(--gray);margin-bottom:14px">
+      This removes the saved Gemini API key from this browser. You will need to paste it again before using AI Coach.
+    </p>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-opponent" onclick="forgetAiApiKey()">Forget Key</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -2234,7 +2250,7 @@ function renderAiCoach() {
     <div class="ai-actions">
       <button class="btn btn-primary btn-sm" onclick="requestAiCoachSummary()" ${disabled}>${buttonLabel}</button>
       ${aiModeToggleHtml(mode)}
-      <button class="btn btn-secondary btn-sm" onclick="forgetAiApiKey()">Forget Key</button>
+      <button class="btn btn-secondary btn-sm" onclick="askForgetAiApiKey()">Forget Key</button>
     </div>
     ${all.length === 0 ? '<p class="ai-note">Record at least one point before generating a summary.</p>' : ''}
   </div>
@@ -2887,8 +2903,13 @@ function forgetAiApiKey() {
     return;
   }
   aiCoach = { matchId: null, pointCount: 0, mode: getAiMode(), loading: false, text: '', error: '' };
+  closeModal();
   renderAiCoach();
   toast('Gemini API key removed', 'success');
+}
+
+function askForgetAiApiKey() {
+  openModal('modalForgetAiKey');
 }
 
 function aiModeToggleHtml(mode) {
@@ -3128,7 +3149,7 @@ function aiOutputMode(mode) {
 }
 
 function aiMaxOutputTokens(mode) {
-  return normalizeAiMode(mode) === 'verbose' ? 2048 : 700;
+  return 2048;
 }
 
 function aiPointRecord(points) {
