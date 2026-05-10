@@ -43,26 +43,6 @@
     }
 
     /* ====================================================
-       HEADER
-    ==================================================== */
-    header {
-      background: var(--green);
-      color: var(--white);
-      padding: 11px 14px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      box-shadow: var(--shadow);
-    }
-
-    header h1 { font-size: 1rem; font-weight: 700; }
-
-    .header-right { display: flex; gap: 6px; align-items: center; }
-
-    /* ====================================================
        TABS
     ==================================================== */
     .tabs {
@@ -70,7 +50,7 @@
       background: var(--white);
       border-bottom: 1px solid #dde0e6;
       position: sticky;
-      top: 45px;
+      top: 0;
       z-index: 99;
       box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     }
@@ -124,7 +104,6 @@
     .btn-xs       { padding: 5px 8px;  font-size: 0.72rem; border-radius: 6px; }
     .btn-icon     { width: 34px; padding-left: 0; padding-right: 0; }
     .btn-full     { width: 100%; display: block; }
-    .btn-header   { background: rgba(255,255,255,0.2); color: var(--white); border: 1px solid rgba(255,255,255,0.4); }
 
     /* ====================================================
        CODE BUTTON TOGGLES
@@ -175,25 +154,6 @@
       padding: 9px 12px 10px;
       margin-bottom: 8px;
       box-shadow: var(--shadow);
-    }
-
-    .match-label {
-      font-size: 0.68rem;
-      opacity: 0.75;
-      text-align: center;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .match-format {
-      margin-top: 3px;
-      font-size: 0.62rem;
-      font-weight: 800;
-      letter-spacing: 0.06em;
-      text-align: center;
-      text-transform: uppercase;
-      opacity: 0.82;
     }
 
     .scorebug-context {
@@ -422,22 +382,6 @@
       font-size: 0.72rem;
       min-width: 0;
     }
-
-    /* ====================================================
-       GAME CONTROLS BAR
-    ==================================================== */
-    .game-bar {
-      background: var(--white);
-      border-radius: var(--radius);
-      padding: 9px 12px;
-      margin-bottom: 10px;
-      box-shadow: var(--shadow);
-      display: flex;
-      gap: 7px;
-      align-items: center;
-    }
-
-    .game-bar-label { font-size: 0.78rem; color: var(--gray); flex: 1; font-weight: 500; }
 
     /* ====================================================
        COMPLETE BANNER
@@ -811,16 +755,6 @@
 <body>
 
 <!-- ============================================================
-     HEADER
-============================================================ -->
-<header>
-  <h1>🎾 Tennis Pivot Tracker</h1>
-  <div class="header-right">
-    <button class="btn btn-sm btn-header" id="newMatchBtn">+ New Match</button>
-  </div>
-</header>
-
-<!-- ============================================================
      TABS
 ============================================================ -->
 <div class="tabs">
@@ -869,8 +803,6 @@
         <div class="context-role" id="contextRole">Server unknown</div>
         <div class="context-pressure" id="contextPressure" aria-label="Point pressure"></div>
       </div>
-      <div class="match-label" id="matchLabel">Player vs Opponent</div>
-      <div class="match-format" id="matchFormatLabel">Bo3 · Final TB7 · Regular</div>
       <div class="scorebug-points" id="tennisPts" aria-live="polite">0 – 0</div>
       <div class="scorebug-summary" aria-label="Games and sets score">
         <div class="scorebug-stat">
@@ -897,12 +829,6 @@
         <button class="btn btn-secondary" id="btnMptsBack" onclick="mptsBack()">Back</button>
         <button class="btn btn-secondary" onclick="cancelPoint()">Cancel</button>
       </div>
-    </div>
-
-    <!-- Game control bar -->
-    <div class="game-bar">
-      <span class="game-bar-label">Game actions</span>
-      <button class="btn btn-xs btn-primary"   onclick="endGame()">End Game →</button>
     </div>
 
     <div id="recordSheetContent" role="region" aria-label="Current game score sheet"></div>
@@ -1099,25 +1025,6 @@
     <div class="modal-btns">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary"   onclick="createMatch()">Start Match</button>
-    </div>
-  </div>
-</div>
-
-<!-- ============================================================
-     MODAL: END GAME
-============================================================ -->
-<div class="modal-overlay" id="modalEndGame">
-  <div class="modal">
-    <h2>End Game — Who Won?</h2>
-    <p style="font-size:0.84rem;color:var(--gray);margin-bottom:14px">
-      Select the game winner. The score sheet will record the separator line.
-    </p>
-    <div class="modal-btns">
-      <button class="btn btn-player"   id="endGamePlayerBtn"   onclick="confirmEndGame('player')">✅ Player</button>
-      <button class="btn btn-opponent" id="endGameOpponentBtn" onclick="confirmEndGame('opponent')">❌ Opponent</button>
-    </div>
-    <div class="modal-btns-single">
-      <button class="btn btn-secondary btn-full" onclick="closeModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -2209,26 +2116,6 @@ function undoLast() {
 // END GAME / SET / MATCH
 // ============================================================
 
-function endGame() {
-  const m = cur();
-  if (!m || m.status === 'completed') return;
-  const pn = shortName(m.player, 'Player');
-  const on = shortName(m.opponent, 'Opponent');
-  qs('#endGamePlayerBtn').textContent   = `✅ ${pn}`;
-  qs('#endGameOpponentBtn').textContent = `❌ ${on}`;
-  openModal('modalEndGame');
-}
-
-function confirmEndGame(winner) {
-  const m = cur();
-  if (!m) return;
-  if (!finishCurrentGame(m, winner)) return;
-
-  save();
-  closeModal();
-  renderAll();
-}
-
 function finishCurrentGame(m, winner) {
   if (!m || m.status === 'completed') return false;
   if (winner !== 'player' && winner !== 'opponent') {
@@ -2328,9 +2215,6 @@ function renderRecord() {
     hide('completeBanner');
     qs('#codeBuilder').classList.remove('hidden');
   }
-
-  qs('#matchLabel').textContent = `${m.player} vs ${m.opponent} — ${m.date}`;
-  qs('#matchFormatLabel').textContent = formatSummary(m);
 
   const ss = setScore(m);
   qs('#pSets').textContent = ss.p;
@@ -3114,8 +2998,6 @@ function showNewMatchModal() {
   qs('#inp-first-server').value = 'player';
   openModal('modalNewMatch');
 }
-
-qs('#newMatchBtn').addEventListener('click', showNewMatchModal);
 
 // ============================================================
 // MODAL HELPERS
