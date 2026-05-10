@@ -259,6 +259,54 @@
 
     .context-pressure:empty { display: none; }
 
+    .serve-attempt-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .serve-attempt-label {
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: var(--gray);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .serve-attempt-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0;
+      padding: 2px;
+      border-radius: 999px;
+      background: #e4e8ef;
+      box-shadow: inset 0 0 0 1px #d2d8e2;
+    }
+
+    .serve-attempt-btn {
+      min-width: 34px;
+      padding: 4px 7px;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--gray);
+      font-size: 0.66rem;
+      font-weight: 800;
+      line-height: 1;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .serve-attempt-btn.is-active {
+      background: var(--white);
+      color: var(--blue);
+      box-shadow: 0 1px 4px rgba(20, 36, 58, 0.18);
+    }
+
+    .serve-attempt-btn:active { transform: scale(0.98); }
+
     .pressure-tag {
       display: inline-block;
       background: #fff3cd;
@@ -465,6 +513,16 @@
     .code-them { color: var(--red); font-weight: 700; text-align: right; }
     .point-tags { display: inline-flex; gap: 3px; margin-left: 5px; vertical-align: middle; }
     .point-tags .pressure-tag { font-size: 0.62rem; padding: 1px 5px; }
+    .serve-tag {
+      display: inline-block;
+      background: #e9eef7;
+      color: var(--blue);
+      border-radius: 999px;
+      padding: 1px 5px;
+      font-size: 0.62rem;
+      font-weight: 800;
+      line-height: 1.35;
+    }
 
     /* ====================================================
        STATS
@@ -810,6 +868,7 @@
 
     <!-- Point entry -->
     <div class="code-builder hidden" id="codeBuilder">
+      <div id="serveAttemptControl"></div>
       <div id="mptsFlow"></div>
 
       <!-- Action buttons -->
@@ -928,6 +987,7 @@
     <table class="code-table">
       <tr><th>Context</th><th>How it works</th></tr>
       <tr><td>Server</td><td>Choose the first server once. The app alternates by game; use Srv only to correct the current game.</td></tr>
+      <tr><td>Serve used</td><td>Use the 1st/2nd toggle before recording a point. It resets to 1st after each point; second serves are shown as 2nd on the sheet.</td></tr>
       <tr><td>Shot filter</td><td>The shot screen uses the server context to hide impossible SRV/RET choices.</td></tr>
       <tr><td>Pressure</td><td>Break, game, set, match, deuce, and advantage tags are computed automatically from the score.</td></tr>
       <tr><td>*</td><td>Still manual: use it for emotional or momentum points that matter beyond the formal score.</td></tr>
@@ -1219,6 +1279,7 @@ let pending = {
   detail: null,
   outcome: null,
   big: false,
+  serveAttempt: 'first',
 };
 
 let deleteTargetId = null;
@@ -1508,11 +1569,11 @@ function nextServerAfterCurrentGame(m) {
   return nextGameIndex % 2 === 0 ? m.firstServer : otherSide(m.firstServer);
 }
 
-function currentPointContext(m, g = curGame(m)) {
-  return buildPointContext(m, g, normalizePointCount(g.pp), normalizePointCount(g.op));
+function currentPointContext(m, g = curGame(m), serveAttempt = currentPendingServeAttempt()) {
+  return buildPointContext(m, g, normalizePointCount(g.pp), normalizePointCount(g.op), serveAttempt);
 }
 
-function buildPointContext(m, g, playerPoints, opponentPoints) {
+function buildPointContext(m, g, playerPoints, opponentPoints, serveAttempt = 'unknown') {
   const gs = gameScore(m);
   const ss = setScore(m);
   const scoreBefore = {
@@ -1526,6 +1587,7 @@ function buildPointContext(m, g, playerPoints, opponentPoints) {
 
   return {
     server: isSide(g.server) ? g.server : null,
+    serveAttempt: normalizeServeAttempt(serveAttempt),
     scoreBefore,
     pressure: pressureTagsForScore(m, scoreBefore, g.server),
   };
@@ -1577,6 +1639,7 @@ function normalizePointContextValue(context) {
   const score = context.scoreBefore && typeof context.scoreBefore === 'object' ? context.scoreBefore : {};
   return {
     server: isSide(context.server) ? context.server : null,
+    serveAttempt: normalizeServeAttempt(context.serveAttempt),
     scoreBefore: {
       playerPoints: normalizePointCount(score.playerPoints),
       opponentPoints: normalizePointCount(score.opponentPoints),
@@ -1587,6 +1650,11 @@ function normalizePointContextValue(context) {
     },
     pressure: normalizePressureList(context.pressure),
   };
+}
+
+function normalizeServeAttempt(value) {
+  if (value === 'first' || value === 'second') return value;
+  return 'unknown';
 }
 
 function normalizePressureList(value) {
@@ -1627,7 +1695,7 @@ function today() { return new Date().toISOString().slice(0, 10); }
 // ============================================================
 
 function resetPending() {
-  pending = { step: 0, momentum: null, shot: null, detail: null, outcome: null, big: false };
+  pending = { step: 0, momentum: null, shot: null, detail: null, outcome: null, big: false, serveAttempt: 'first' };
 }
 
 function startPoint() {
@@ -1635,12 +1703,14 @@ function startPoint() {
   resetPending();
   qs('#btnBig').classList.remove('sel-amber');
   qs('#codeBuilder').classList.remove('hidden');
+  renderServeAttemptToggle();
   renderMptsStep();
 }
 
 function cancelPoint() {
   resetPending();
   qs('#btnBig').classList.remove('sel-amber');
+  renderServeAttemptToggle();
   if (!cur() || cur().status === 'completed') {
     qs('#codeBuilder').classList.add('hidden');
     qs('#mptsFlow').innerHTML = '';
@@ -1784,6 +1854,23 @@ function buildCode(source = pending) {
 function updatePreview() {
 }
 
+function currentPendingServeAttempt() {
+  return normalizeServeAttempt(pending.serveAttempt) === 'second' ? 'second' : 'first';
+}
+
+function setPendingServeAttempt(value) {
+  const attempt = normalizeServeAttempt(value);
+  pending.serveAttempt = attempt === 'second' ? 'second' : 'first';
+  renderServeAttemptToggle();
+}
+
+function serveAttemptForMpts(mpts) {
+  if (mpts && mpts.shot === 'SRV' && (mpts.detail === 'DF' || mpts.detail === 'SHT')) {
+    return 'second';
+  }
+  return currentPendingServeAttempt();
+}
+
 function recordPoint() {
   const m = cur();
   if (!m) return;
@@ -1796,13 +1883,13 @@ function recordPoint() {
 
   const g = curGame(m);
   normalizeGamePointCounts(g);
-  const context = currentPointContext(m, g);
   const mpts = {
     momentum: pending.momentum,
     shot: pending.shot || null,
     detail: pending.detail,
     outcome: pending.outcome,
   };
+  const context = currentPointContext(m, g, serveAttemptForMpts(mpts));
 
   const pt = {
     code: buildCode(),
@@ -1997,7 +2084,26 @@ function renderPointContext(m) {
   const roleEl = qs('#contextRole');
   roleEl.textContent = ctx.server ? `${role}: ${serverName}` : role;
   roleEl.classList.toggle('context-unknown', !ctx.server);
+  renderServeAttemptToggle();
   qs('#contextPressure').innerHTML = pressureTagHtml(ctx.pressure, false);
+}
+
+function renderServeAttemptToggle() {
+  const el = qs('#serveAttemptControl');
+  if (!el) return;
+  const m = cur();
+  if (!m || m.status === 'completed') {
+    el.innerHTML = '';
+    return;
+  }
+  const current = currentPendingServeAttempt();
+  el.innerHTML = `<div class="serve-attempt-row">
+    <span class="serve-attempt-label">Serve used</span>
+    <div class="serve-attempt-toggle" role="group" aria-label="Serve used for this point">
+      <button class="serve-attempt-btn${current === 'first' ? ' is-active' : ''}" onclick="setPendingServeAttempt('first')" aria-pressed="${current === 'first'}">1st</button>
+      <button class="serve-attempt-btn${current === 'second' ? ' is-active' : ''}" onclick="setPendingServeAttempt('second')" aria-pressed="${current === 'second'}">2nd</button>
+    </div>
+  </div>`;
 }
 
 function renderCurrentGameSheet(m) {
@@ -2020,7 +2126,7 @@ function renderCurrentGameSheet(m) {
       const isBig  = pt.big || String(pt.code || '').includes('*');
       const cls    = isBig ? 'sheet-point big-pt' : pt.leak ? 'sheet-point leak-pt' : 'sheet-point';
       const display = pt.leak ? `[${esc(pt.code)}]` : esc(pt.code);
-      const tags = pressureTagHtml(pt.context && pt.context.pressure, true);
+      const tags = pointTagsHtml(pt);
       html += `<div class="${cls}">`;
       if (pt.side === 'player') {
         html += `<span class="code-us">${display}${tags}</span><span></span>`;
@@ -2073,7 +2179,7 @@ function renderSheet() {
         const isBig  = pt.big || String(pt.code || '').includes('*');
         const cls    = isBig ? 'sheet-point big-pt' : pt.leak ? 'sheet-point leak-pt' : 'sheet-point';
         const display = pt.leak ? `[${esc(pt.code)}]` : esc(pt.code);
-        const tags = pressureTagHtml(pt.context && pt.context.pressure, true);
+        const tags = pointTagsHtml(pt);
         html += `<div class="${cls}">`;
         if (pt.side === 'player') {
           html += `<span class="code-us">${display}${tags}</span><span></span>`;
@@ -2138,9 +2244,22 @@ function renderStats() {
   const servePts = all.filter(pt => pointServer(pt) === 'player');
   const returnPts = all.filter(pt => pointServer(pt) === 'opponent');
   const unknownServerPts = all.filter(pt => !pointServer(pt));
+  const serveFirstPts = pointsWithServeAttempt(servePts, 'first');
+  const serveSecondPts = pointsWithServeAttempt(servePts, 'second');
+  const serveUnknownAttemptPts = pointsWithServeAttempt(servePts, 'unknown');
+  const returnFirstPts = pointsWithServeAttempt(returnPts, 'first');
+  const returnSecondPts = pointsWithServeAttempt(returnPts, 'second');
+  const returnUnknownAttemptPts = pointsWithServeAttempt(returnPts, 'unknown');
+  const knownServeAttemptTotal = serveFirstPts.length + serveSecondPts.length;
+  const firstServeInPct = pctLabel(pctValue(serveFirstPts.length, knownServeAttemptTotal));
+  const doubleFaults = servePts.filter(isDoubleFaultPoint).length;
   const pressurePts = all.filter(pt => pointPressure(pt).length > 0);
   const breakServePts = pressurePts.filter(pt => pointServer(pt) === 'player' && hasPressure(pt, 'break_point'));
   const breakReturnPts = pressurePts.filter(pt => pointServer(pt) === 'opponent' && hasPressure(pt, 'break_point'));
+  const breakServeFirstPts = pointsWithServeAttempt(breakServePts, 'first');
+  const breakServeSecondPts = pointsWithServeAttempt(breakServePts, 'second');
+  const breakReturnFirstPts = pointsWithServeAttempt(breakReturnPts, 'first');
+  const breakReturnSecondPts = pointsWithServeAttempt(breakReturnPts, 'second');
   const playerGameSetMatchPts = pressurePts.filter(pt =>
     ['game_point', 'set_point', 'match_point'].some(tag => hasPressure(pt, tag))
   );
@@ -2148,6 +2267,10 @@ function renderStats() {
   const sorted = sortCodeCounts(fullCounts);
   const topServeLoss = topCodeFor(servePts.filter(pt => pt.side === 'opponent'));
   const topReturnLoss = topCodeFor(returnPts.filter(pt => pt.side === 'opponent'));
+  const topFirstServeLoss = topCodeFor(serveFirstPts.filter(pt => pt.side === 'opponent'));
+  const topSecondServeLoss = topCodeFor(serveSecondPts.filter(pt => pt.side === 'opponent'));
+  const topFirstReturnLoss = topCodeFor(returnFirstPts.filter(pt => pt.side === 'opponent'));
+  const topSecondReturnLoss = topCodeFor(returnSecondPts.filter(pt => pt.side === 'opponent'));
   const topPressure = topCodeFor(pressurePts);
 
   let html = '';
@@ -2192,14 +2315,27 @@ function renderStats() {
     ${statRecordRow('Player service points', servePts)}
     ${statRecordRow('Player return points', returnPts)}
     ${unknownServerPts.length ? `<div class="stat-row"><span>Unknown server context</span><span>${unknownServerPts.length}</span></div>` : ''}
+    ${statRecordPctRow('Player 1st serve points', serveFirstPts)}
+    ${statRecordPctRow('Player 2nd serve points', serveSecondPts)}
+    <div class="stat-row"><span>1st serve in</span><span>${firstServeInPct}</span></div>
+    <div class="stat-row"><span>Double faults</span><span>${doubleFaults}</span></div>
+    ${statRecordPctRow('Return vs 1st serve', returnFirstPts)}
+    ${statRecordPctRow('Return vs 2nd serve', returnSecondPts)}
+    ${serveUnknownAttemptPts.length || returnUnknownAttemptPts.length ? `<div class="stat-row"><span>Unknown serve attempt</span><span>${serveUnknownAttemptPts.length + returnUnknownAttemptPts.length}</span></div>` : ''}
     <div class="stat-row"><span>Most common lost pivot on serve</span><span class="stat-code">${esc(topServeLoss || '—')}</span></div>
     <div class="stat-row"><span>Most common lost pivot on return</span><span class="stat-code">${esc(topReturnLoss || '—')}</span></div>
+    <div class="stat-row"><span>Lost pivot after 1st serve</span><span class="stat-code">${esc(topFirstServeLoss || '—')}</span></div>
+    <div class="stat-row"><span>Lost pivot after 2nd serve</span><span class="stat-code">${esc(topSecondServeLoss || '—')}</span></div>
+    <div class="stat-row"><span>Lost return pivot vs 1st serve</span><span class="stat-code">${esc(topFirstReturnLoss || '—')}</span></div>
+    <div class="stat-row"><span>Lost return pivot vs 2nd serve</span><span class="stat-code">${esc(topSecondReturnLoss || '—')}</span></div>
   </div>`;
 
   html += `<div class="stats-card">
     <div class="stats-title">Pressure Points</div>
     ${statRecordRow('Break points saved', breakServePts)}
     ${statRecordRow('Break points converted', breakReturnPts)}
+    ${statAttemptSplitRow('Break points on serve', breakServeFirstPts, breakServeSecondPts)}
+    ${statAttemptSplitRow('Break points on return', breakReturnFirstPts, breakReturnSecondPts)}
     ${statRecordRow('Game / set / match points', playerGameSetMatchPts)}
     <div class="stat-row"><span>Most common pressure pivot</span><span class="stat-code">${esc(topPressure || '—')}</span></div>
   </div>`;
@@ -2570,7 +2706,7 @@ function buildScoreSheetText(m, options) {
     if (si > 0) txt += `\n── Set ${si + 1} ──\n`;
     s.games.forEach(g => {
       g.points.forEach(pt => {
-        const tags = pressureTextTags(pt.context && pt.context.pressure);
+        const tags = pointTextTags(pt);
         const codeText = pt.leak ? `[${pt.code}]` : pt.code;
         const display = tags ? `${codeText} ${tags}` : codeText;
         if (pt.side === 'player') {
@@ -2633,7 +2769,7 @@ function refreshCurrentGameContexts(m, g) {
   let pp = 0;
   let op = 0;
   g.points.forEach(pt => {
-    pt.context = buildPointContext(m, g, pp, op);
+    pt.context = buildPointContext(m, g, pp, op, pointServeAttempt(pt));
     if (pt.side === 'player') pp++; else op++;
   });
 }
@@ -2797,9 +2933,26 @@ function pressureTagHtml(pressure, short) {
   return short ? `<span class="point-tags">${html}</span>` : html;
 }
 
+function pointTagsHtml(pt) {
+  const tags = [];
+  if (pointServeAttempt(pt) === 'second') tags.push('<span class="serve-tag">2nd</span>');
+  pressureLabels(pt && pt.context && pt.context.pressure, true).forEach(label => {
+    tags.push(`<span class="pressure-tag">${esc(label)}</span>`);
+  });
+  return tags.length ? `<span class="point-tags">${tags.join('')}</span>` : '';
+}
+
 function pressureTextTags(pressure) {
   const labels = pressureLabels(pressure, true);
   return labels.length ? labels.join('/') : '';
+}
+
+function pointTextTags(pt) {
+  const tags = [];
+  if (pointServeAttempt(pt) === 'second') tags.push('2nd');
+  const pressure = pressureTextTags(pt && pt.context && pt.context.pressure);
+  if (pressure) tags.push(pressure);
+  return tags.join(' ');
 }
 
 function codeForStats(code) {
@@ -2808,6 +2961,10 @@ function codeForStats(code) {
 
 function pointServer(pt) {
   return pt && pt.context && isSide(pt.context.server) ? pt.context.server : null;
+}
+
+function pointServeAttempt(pt) {
+  return pt && pt.context ? normalizeServeAttempt(pt.context.serveAttempt) : 'unknown';
 }
 
 function pointPressure(pt) {
@@ -2841,6 +2998,38 @@ function statRecordRow(label, points) {
   const won = points.filter(pt => pt.side === 'player').length;
   const lost = points.length - won;
   return `<div class="stat-row"><span>${esc(label)}</span><span><span class="stat-us">${won}</span> – <span class="stat-them">${lost}</span></span></div>`;
+}
+
+function statRecordPctRow(label, points) {
+  const won = points.filter(pt => pt.side === 'player').length;
+  const lost = points.length - won;
+  const pct = pctLabel(pctValue(won, points.length));
+  return `<div class="stat-row"><span>${esc(label)}</span><span><span class="stat-us">${won}</span> – <span class="stat-them">${lost}</span> <span style="color:var(--gray)">(${pct})</span></span></div>`;
+}
+
+function statAttemptSplitRow(label, firstPoints, secondPoints) {
+  return `<div class="stat-row"><span>${esc(label)}</span><span>${attemptCompact('1st', firstPoints)} · ${attemptCompact('2nd', secondPoints)}</span></div>`;
+}
+
+function attemptCompact(label, points) {
+  const won = points.filter(pt => pt.side === 'player').length;
+  return `${label} ${won}-${points.length - won}`;
+}
+
+function pctValue(part, total) {
+  return total > 0 ? Math.round((part / total) * 100) : null;
+}
+
+function pctLabel(value) {
+  return value === null ? '—' : `${value}%`;
+}
+
+function pointsWithServeAttempt(points, attempt) {
+  return points.filter(pt => pointServeAttempt(pt) === attempt);
+}
+
+function isDoubleFaultPoint(pt) {
+  return hasMpts(pt) && pt.mpts.shot === 'SRV' && pt.mpts.detail === 'DF';
 }
 
 function topBadMptsPattern(points) {
@@ -3056,9 +3245,19 @@ function buildAiCoachPayload(m, mode = getAiMode()) {
   const bigAll = all.filter(pt => pt.big || String(pt.code || '').includes('*'));
   const servePts = all.filter(pt => pointServer(pt) === 'player');
   const returnPts = all.filter(pt => pointServer(pt) === 'opponent');
+  const serveFirstPts = pointsWithServeAttempt(servePts, 'first');
+  const serveSecondPts = pointsWithServeAttempt(servePts, 'second');
+  const serveUnknownAttemptPts = pointsWithServeAttempt(servePts, 'unknown');
+  const returnFirstPts = pointsWithServeAttempt(returnPts, 'first');
+  const returnSecondPts = pointsWithServeAttempt(returnPts, 'second');
+  const returnUnknownAttemptPts = pointsWithServeAttempt(returnPts, 'unknown');
   const pressurePts = all.filter(pt => pointPressure(pt).length > 0);
   const breakServePts = pressurePts.filter(pt => pointServer(pt) === 'player' && hasPressure(pt, 'break_point'));
   const breakReturnPts = pressurePts.filter(pt => pointServer(pt) === 'opponent' && hasPressure(pt, 'break_point'));
+  const breakServeFirstPts = pointsWithServeAttempt(breakServePts, 'first');
+  const breakServeSecondPts = pointsWithServeAttempt(breakServePts, 'second');
+  const breakReturnFirstPts = pointsWithServeAttempt(breakReturnPts, 'first');
+  const breakReturnSecondPts = pointsWithServeAttempt(breakReturnPts, 'second');
   const playerGameSetMatchPts = pressurePts.filter(pt =>
     ['game_point', 'set_point', 'match_point'].some(tag => hasPressure(pt, tag))
   );
@@ -3104,6 +3303,22 @@ function buildAiCoachPayload(m, mode = getAiMode()) {
     serveReturn: {
       servicePoints: aiPointRecord(servePts),
       returnPoints: aiPointRecord(returnPts),
+      playerServeByAttempt: {
+        first: aiPointRecordWithPct(serveFirstPts),
+        second: aiPointRecordWithPct(serveSecondPts),
+        unknown: aiPointRecordWithPct(serveUnknownAttemptPts),
+        firstServeInPct: pctValue(serveFirstPts.length, serveFirstPts.length + serveSecondPts.length),
+        doubleFaults: servePts.filter(isDoubleFaultPoint).length,
+        topFirstServeLoss: topCodeFor(serveFirstPts.filter(pt => pt.side === 'opponent')),
+        topSecondServeLoss: topCodeFor(serveSecondPts.filter(pt => pt.side === 'opponent')),
+      },
+      playerReturnByOpponentAttempt: {
+        first: aiPointRecordWithPct(returnFirstPts),
+        second: aiPointRecordWithPct(returnSecondPts),
+        unknown: aiPointRecordWithPct(returnUnknownAttemptPts),
+        topFirstServeReturnLoss: topCodeFor(returnFirstPts.filter(pt => pt.side === 'opponent')),
+        topSecondServeReturnLoss: topCodeFor(returnSecondPts.filter(pt => pt.side === 'opponent')),
+      },
       topServeLoss: topCodeFor(servePts.filter(pt => pt.side === 'opponent')),
       topReturnLoss: topCodeFor(returnPts.filter(pt => pt.side === 'opponent')),
     },
@@ -3111,6 +3326,14 @@ function buildAiCoachPayload(m, mode = getAiMode()) {
       pressurePoints: aiPointRecord(pressurePts),
       breakPointsSaved: aiPointRecord(breakServePts),
       breakPointsConverted: aiPointRecord(breakReturnPts),
+      breakPointsOnServeByAttempt: {
+        first: aiPointRecordWithPct(breakServeFirstPts),
+        second: aiPointRecordWithPct(breakServeSecondPts),
+      },
+      breakPointsOnReturnByOpponentAttempt: {
+        first: aiPointRecordWithPct(breakReturnFirstPts),
+        second: aiPointRecordWithPct(breakReturnSecondPts),
+      },
       gameSetMatchPoints: aiPointRecord(playerGameSetMatchPts),
       topPressurePivot: topCodeFor(pressurePts),
     },
@@ -3137,6 +3360,7 @@ function buildAiCoachPrompt(payload, mode = getAiMode()) {
     'Input is anonymized JSON from a player-centric MPTS tracker. It is not full match charting or full shot-by-shot charting.',
     'Use only the data provided. Do not invent strokes, scores, tactics, injuries, emotions, or opponent tendencies not supported by the data.',
     'Prioritize repeated patterns and coachable actions over isolated single-point events.',
+    'Use first/second serve splits when they make a clearer serve or return action, but do not overstate thin samples.',
     'Do not use the phrase "momentum loss" or variants like "lost momentum"; use "lost points", "BAD pivots", or "points where the player gave up control" instead.',
     'If the sample is thin, say so and keep the advice conservative.',
   ];
@@ -3258,6 +3482,14 @@ function aiPointRecord(points) {
   };
 }
 
+function aiPointRecordWithPct(points) {
+  const record = aiPointRecord(points);
+  return {
+    ...record,
+    playerWinPct: pctValue(record.playerWon, record.total),
+  };
+}
+
 function aiPointForPayload(pt, index) {
   return {
     index: index + 1,
@@ -3300,6 +3532,7 @@ function buildAiSystemGuide() {
     },
     scoreContext: {
       server: 'Stored per point from automatic server tracking.',
+      serveAttempt: 'Stored per point as first, second, or unknown. Second includes points played behind a second serve and double faults.',
       pressure: 'Automatically computed tags such as break_point, game_point, set_point, match_point, deuce, and advantage.',
       big: 'Manual star for emotionally or tactically important points beyond formal score pressure.',
     },
