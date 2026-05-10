@@ -500,8 +500,14 @@
       margin-top: 10px;
     }
 
+    .ai-summary-card { overflow: visible; }
+
     .ai-output {
+      display: block;
       white-space: pre-wrap;
+      overflow: visible;
+      overflow-wrap: anywhere;
+      max-height: none;
       font-size: 0.84rem;
       line-height: 1.55;
       color: var(--text);
@@ -2189,7 +2195,7 @@ function renderAiCoach() {
     </div>
     ${all.length === 0 ? '<p class="ai-note">Record at least one point before generating a summary.</p>' : ''}
   </div>
-  ${text ? '<div class="stats-card"><div class="stats-title">Coach Summary</div><div class="ai-output" id="aiCoachText"></div></div>' : ''}
+  ${text ? '<div class="stats-card ai-summary-card"><div class="stats-title">Coach Summary</div><div class="ai-output" id="aiCoachText"></div></div>' : ''}
   ${error ? '<div class="stats-card"><div class="stats-title">AI Coach Error</div><div class="ai-error" id="aiCoachError"></div></div>' : ''}`;
 
   const textEl = qs('#aiCoachText');
@@ -2875,7 +2881,7 @@ async function requestAiCoachSummary() {
         contents: [{ parts: [{ text: buildAiCoachPrompt(payload) }] }],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 700,
+          maxOutputTokens: 2048,
         },
       }),
     });
