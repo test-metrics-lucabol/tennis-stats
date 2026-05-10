@@ -3097,9 +3097,14 @@ function buildAiCoachPrompt(payload, mode = getAiMode()) {
       'Use distinct evidence buckets in this order when data exists: Biggest leak, Serve/return, Pressure or big points, Stabilizer or positive pattern.',
       'Do not repeat the same code, stat, or pattern across bullets unless it is the only meaningful signal.',
       'Each bullet must use this format: Bucket: evidence -> action.',
+      'Every bullet must be a natural-language coaching cue, not a data table or stat dump.',
+      'Do not output standalone code counts, Markdown tables, JSON, backticks, or lists like "`+FH-ANG-W`: 3".',
+      'If several codes are tied at low counts, summarize the area instead of listing the tied codes.',
       'If a bucket has thin data, say "thin signal" and give a conservative action instead of inventing a pattern.',
       'Keep each action concrete, short, and command-like, such as "spin higher", "aim deep middle", or "block the return".',
       'Prefer actionable point-code evidence from codeBreakdown, serveReturn, pressure, summary.shotLeak, and scoreSheet.text.',
+      'Good example: "- Serve/return: repeated +SRV-ACE-W gives free holds -> keep first-serve target simple."',
+      'Bad example: "- `+SRV-ACE-W`: 6, `+FH-ANG-W`: 3".',
     ];
   return [
     ...common,
