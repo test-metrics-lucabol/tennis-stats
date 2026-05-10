@@ -1,19 +1,31 @@
 <div align="center">
   <img src="assets/icon.svg" alt="Tennis Pivot Tracker icon" width="86">
   <h1>Tennis Pivot Tracker</h1>
-  <p><strong>Chart the point that changed the point.</strong></p>
+  <p><strong>AI-assisted match charting for coaches who want the point behind the score.</strong></p>
 </div>
 
-![Tennis Pivot Tracker app preview placeholder](assets/app-preview.svg)
+<p align="center">
+  <img src="assets/app-screenshot.jpg" alt="Tennis Pivot Tracker mobile record screen" width="360">
+</p>
 
 ## The vibe
 
 - Built for coaches who want useful patterns, not a spreadsheet marathon.
 - Tap through points live from a phone or tablet.
+- Let **AI Coach** turn match stats into crisp cues and review notes.
 - Spot the momentum swing: serve, return, shot choice, pressure, or opponent quality.
 - Leave with one clear coaching action.
 
 > One pattern. One action.
+
+## AI Coach
+
+- Optional Gemini-powered coaching layer.
+- Live-match cues when you need a quick tactical nudge.
+- Set and match reviews when you want the bigger pattern.
+- Uses anonymized match stats, not player names.
+- API key stays in your browser.
+- The app still works perfectly without AI.
 
 ## Quick start
 
@@ -21,7 +33,7 @@
 - Go to **Matches** -> **+ New Match**.
 - Pick the format, scoring rules, and first server.
 - Chart points in **Record**.
-- Review **Sheet**, **Stats**, and optional **AI Coach**.
+- Review **Sheet**, **Stats**, and **AI Coach**.
 
 ## What it tracks
 
@@ -42,7 +54,7 @@
 | **Record** | Log each point while the score updates itself. |
 | **Sheet** | Read the match as a tidy point-by-point story. |
 | **Stats** | Find leaks, pressure trends, serve/return splits, and pivot patterns. |
-| **AI Coach** | Optional Gemini-powered cues and reviews. |
+| **AI Coach** | Turn anonymized stats into tactical cues and match reviews. |
 | **Guide** | Keep coding consistent across coaches. |
 
 ## Match options
@@ -58,7 +70,7 @@
 - JSON export/import for backups and sharing.
 - Gemini API key, if used, stays in the browser.
 - AI Coach only sends anonymized match stats when you ask for a summary.
-- Works fine without AI.
+- AI is optional, not required.
 
 ## Project shape
 
