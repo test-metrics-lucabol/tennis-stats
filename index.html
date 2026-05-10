@@ -492,6 +492,35 @@
     .stat-us   { color: var(--green-dark); font-weight: 700; min-width: 28px; text-align: right; }
     .stat-them { color: var(--red); font-weight: 700; min-width: 28px; text-align: right; }
 
+    .ai-actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .ai-output {
+      white-space: pre-wrap;
+      font-size: 0.84rem;
+      line-height: 1.55;
+      color: var(--text);
+    }
+
+    .ai-note {
+      font-size: 0.78rem;
+      line-height: 1.45;
+      color: var(--gray);
+      margin-top: 8px;
+    }
+
+    .ai-error {
+      color: var(--red);
+      font-size: 0.82rem;
+      line-height: 1.45;
+      margin-top: 8px;
+    }
+
     .pattern-card {
       background: var(--white);
       border-left: 4px solid var(--amber);
@@ -684,6 +713,9 @@
   <div class="tab" data-tab="stats">
     <span class="tab-icon">📊</span>Stats
   </div>
+  <div class="tab" data-tab="ai">
+    <span class="tab-icon">AI</span>Coach
+  </div>
   <div class="tab" data-tab="guide">
     <span class="tab-icon">📖</span>Guide
   </div>
@@ -776,6 +808,13 @@
     <div class="empty-text">No data yet. Record some points to see statistics.</div>
   </div>
   <div id="statsContent"></div>
+</div>
+
+<!-- ============================================================
+     SCREEN: AI COACH
+============================================================ -->
+<div class="screen" id="screen-ai">
+  <div id="aiCoachContent"></div>
 </div>
 
 <!-- ============================================================
@@ -986,6 +1025,9 @@ const PRESSURE_SHORT_LABELS = {
 
 const STORAGE_KEY = 'tennis_pivot_tracker_matches_v2';
 const STORAGE_ID  = 'tennis_pivot_tracker_currentId';
+const AI_KEY_STORAGE = 'tennis_pivot_tracker_gemini_api_key';
+const AI_MODEL = 'gemini-3.1-pro-preview';
+const AI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent`;
 
 // Tennis point labels
 const PTS = ['0', '15', '30', '40'];
@@ -1115,6 +1157,13 @@ let pending = {
 
 let deleteTargetId = null;
 let importIdCounter = 0;
+let aiCoach = {
+  matchId: null,
+  pointCount: 0,
+  loading: false,
+  text: '',
+  error: '',
+};
 
 // ============================================================
 // STORAGE
@@ -1153,6 +1202,34 @@ function load() {
   }
 }
 
+function getAiApiKey() {
+  try {
+    return localStorage.getItem(AI_KEY_STORAGE) || '';
+  } catch(e) {
+    return '';
+  }
+}
+
+function setAiApiKey(value) {
+  try {
+    localStorage.setItem(AI_KEY_STORAGE, value);
+    return true;
+  } catch(e) {
+    console.warn('Tennis Pivot Tracker: Failed to save Gemini API key in browser storage.', e);
+    return false;
+  }
+}
+
+function removeAiApiKey() {
+  try {
+    localStorage.removeItem(AI_KEY_STORAGE);
+    return true;
+  } catch(e) {
+    console.warn('Tennis Pivot Tracker: Failed to remove Gemini API key from browser storage.', e);
+    return false;
+  }
+}
+
 // ============================================================
 // DATA HELPERS
 // ============================================================
@@ -1163,6 +1240,14 @@ function curSet(m)    { return m.sets[m.sets.length - 1]; }
 function curGame(m)   { const s = curSet(m); return s.games[s.games.length - 1]; }
 function isSide(value) { return value === 'player' || value === 'opponent'; }
 function otherSide(side) { return side === 'player' ? 'opponent' : side === 'opponent' ? 'player' : null; }
+
+function allMatchPoints(m) {
+  const all = [];
+  if (m && Array.isArray(m.sets)) {
+    m.sets.forEach(s => s.games.forEach(g => all.push(...g.points)));
+  }
+  return all;
+}
 
 /** Count sets won for each side */
 function setScore(m) {
@@ -1772,6 +1857,7 @@ function renderAll() {
   renderRecord();
   renderSheet();
   renderStats();
+  renderAiCoach();
   renderGuide();
   renderMatchList();
 }
@@ -1944,9 +2030,7 @@ function renderStats() {
   }
   hide('statsNoMatch');
 
-  // Gather all points
-  const all = [];
-  m.sets.forEach(s => s.games.forEach(g => all.push(...g.points)));
+  const all = allMatchPoints(m);
 
   if (all.length === 0) {
     qs('#statsContent').innerHTML = '<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">No points recorded yet.</div></div>';
@@ -2056,6 +2140,62 @@ function renderStats() {
   html += '</div>';
 
   qs('#statsContent').innerHTML = html;
+}
+
+function renderAiCoach() {
+  const el = qs('#aiCoachContent');
+  if (!el) return;
+
+  const m = cur();
+  const hasKey = getAiApiKey().trim().length > 0;
+
+  if (!hasKey) {
+    el.innerHTML = `<div class="stats-card">
+      <div class="stats-title">AI Coach Setup</div>
+      <div class="form-group">
+        <label class="form-label" for="aiApiKeyInput">Gemini API Key</label>
+        <input class="form-input" id="aiApiKeyInput" type="password" placeholder="Paste your Gemini API key" autocomplete="off">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="saveAiApiKeyFromInput()">Save API Key</button>
+      <p class="ai-note">
+        The key is stored only in this browser. Your anonymized match stats are sent directly from this browser to Gemini when you generate a summary.
+      </p>
+    </div>`;
+    return;
+  }
+
+  if (!m) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">AI</div><div class="empty-text">No active match. Start one to use AI Coach.</div></div>';
+    return;
+  }
+
+  const all = allMatchPoints(m);
+  const isCurrent = aiCoach.matchId === m.id && aiCoach.pointCount === all.length;
+  const loading = isCurrent && aiCoach.loading;
+  const text = isCurrent ? aiCoach.text : '';
+  const error = isCurrent ? aiCoach.error : '';
+  const disabled = loading || all.length === 0 ? 'disabled' : '';
+  const buttonLabel = loading ? 'Generating...' : 'Generate Summary';
+
+  el.innerHTML = `<div class="stats-card">
+    <div class="stats-title">AI Coach — ${esc(AI_MODEL)}</div>
+    <div class="stat-row"><span>API key</span><span style="font-weight:700;color:var(--green-dark)">Saved locally</span></div>
+    <p class="ai-note">
+      Sends anonymized match stats directly to Gemini from this browser. Player names are replaced with Player and Opponent.
+    </p>
+    <div class="ai-actions">
+      <button class="btn btn-primary" onclick="requestAiCoachSummary()" ${disabled}>${buttonLabel}</button>
+      <button class="btn btn-secondary btn-sm" onclick="forgetAiApiKey()">Forget Key</button>
+    </div>
+    ${all.length === 0 ? '<p class="ai-note">Record at least one point before generating a summary.</p>' : ''}
+  </div>
+  ${text ? '<div class="stats-card"><div class="stats-title">Coach Summary</div><div class="ai-output" id="aiCoachText"></div></div>' : ''}
+  ${error ? '<div class="stats-card"><div class="stats-title">AI Coach Error</div><div class="ai-error" id="aiCoachError"></div></div>' : ''}`;
+
+  const textEl = qs('#aiCoachText');
+  if (textEl) textEl.textContent = text;
+  const errorEl = qs('#aiCoachError');
+  if (errorEl) errorEl.textContent = error;
 }
 
 function renderGuide() {
@@ -2320,9 +2460,23 @@ function copySheet() {
   const m = cur();
   if (!m) return;
 
+  const txt = buildScoreSheetText(m);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt)
+      .then(() => toast('Score sheet copied to clipboard!', 'success'))
+      .catch(() => fallbackCopy(txt));
+  } else {
+    fallbackCopy(txt);
+  }
+}
+
+function buildScoreSheetText(m, options) {
+  const anonymize = !!(options && options.anonymize);
+  const playerName = anonymize ? 'Player' : m.player;
+  const opponentName = anonymize ? 'Opponent' : m.opponent;
   const COL = 24;
-  let txt = `${m.player} vs ${m.opponent} — ${m.date}\n\n`;
-  txt += `${'Our Player'.padEnd(COL)}| Opponent\n`;
+  let txt = `${playerName} vs ${opponentName} — ${m.date}\n\n`;
+  txt += `${(anonymize ? 'Player' : 'Our Player').padEnd(COL)}| Opponent\n`;
   txt += `${'-'.repeat(COL)}|${'-'.repeat(COL)}\n`;
 
   m.sets.forEach((s, si) => {
@@ -2339,7 +2493,7 @@ function copySheet() {
         }
       });
       if (g.winner) {
-        const wn = g.winner === 'player' ? m.player : m.opponent;
+        const wn = g.winner === 'player' ? playerName : opponentName;
         txt += `${'-'.repeat(COL)}  Game ${wn}\n`;
       }
     });
@@ -2350,13 +2504,7 @@ function copySheet() {
     }
   });
 
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(txt)
-      .then(() => toast('Score sheet copied to clipboard!', 'success'))
-      .catch(() => fallbackCopy(txt));
-  } else {
-    fallbackCopy(txt);
-  }
+  return txt;
 }
 
 function fallbackCopy(text) {
@@ -2424,6 +2572,7 @@ function confirmDelete() {
 function switchTab(id) {
   qsa('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
   qsa('.screen').forEach(s => s.classList.toggle('active', s.id === `screen-${id}`));
+  if (id === 'ai') renderAiCoach();
 }
 
 qsa('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
@@ -2657,6 +2806,318 @@ function mptsActionFor(shot, detail) {
     'RET-LNG': 'Use shorter backswing return reps with deep middle targets.',
   };
   return actionByKey[key] || `Train the ${mptsShotDef(shot).label.toLowerCase()} pattern tagged ${detail} with a clear target and repeatable margin.`;
+}
+
+// ============================================================
+// AI COACH
+// ============================================================
+
+function saveAiApiKeyFromInput() {
+  const input = qs('#aiApiKeyInput');
+  const key = input ? input.value.trim() : '';
+  if (!key) {
+    toast('Enter a Gemini API key', 'error');
+    return;
+  }
+  if (!setAiApiKey(key)) {
+    toast('Could not save API key in this browser', 'error');
+    return;
+  }
+  aiCoach = { matchId: null, pointCount: 0, loading: false, text: '', error: '' };
+  renderAiCoach();
+  toast('Gemini API key saved in this browser', 'success');
+}
+
+function forgetAiApiKey() {
+  if (!removeAiApiKey()) {
+    toast('Could not remove API key', 'error');
+    return;
+  }
+  aiCoach = { matchId: null, pointCount: 0, loading: false, text: '', error: '' };
+  renderAiCoach();
+  toast('Gemini API key removed', 'success');
+}
+
+async function requestAiCoachSummary() {
+  const m = cur();
+  if (!m) {
+    toast('Start a match first', 'error');
+    return;
+  }
+  if (allMatchPoints(m).length === 0) {
+    toast('Record at least one point first', 'error');
+    return;
+  }
+  const apiKey = getAiApiKey().trim();
+  if (!apiKey) {
+    renderAiCoach();
+    toast('Enter a Gemini API key first', 'error');
+    return;
+  }
+  if (typeof fetch !== 'function') {
+    toast('This browser cannot call Gemini', 'error');
+    return;
+  }
+
+  const pointCount = allMatchPoints(m).length;
+  aiCoach = { matchId: m.id, pointCount, loading: true, text: '', error: '' };
+  renderAiCoach();
+
+  try {
+    const payload = buildAiCoachPayload(m);
+    const response = await fetch(AI_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: buildAiCoachPrompt(payload) }] }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 700,
+        },
+      }),
+    });
+
+    const raw = await response.text();
+    const data = parseJsonOrNull(raw);
+    if (!response.ok) {
+      throw new Error(geminiErrorMessage(response.status, data, raw));
+    }
+
+    const text = extractGeminiText(data);
+    if (!text) throw new Error('Gemini returned no summary text.');
+
+    aiCoach = { matchId: m.id, pointCount, loading: false, text, error: '' };
+    renderAiCoach();
+    toast('AI coach summary ready', 'success');
+  } catch (err) {
+    aiCoach = {
+      matchId: m.id,
+      pointCount,
+      loading: false,
+      text: '',
+      error: err && err.message ? err.message : 'AI Coach failed.',
+    };
+    renderAiCoach();
+    toast('AI Coach failed', 'error');
+  }
+}
+
+function buildAiCoachPayload(m) {
+  const all = allMatchPoints(m);
+  const mptsAll = all.filter(hasMpts);
+  const bigAll = all.filter(pt => pt.big || String(pt.code || '').includes('*'));
+  const servePts = all.filter(pt => pointServer(pt) === 'player');
+  const returnPts = all.filter(pt => pointServer(pt) === 'opponent');
+  const pressurePts = all.filter(pt => pointPressure(pt).length > 0);
+  const breakServePts = pressurePts.filter(pt => pointServer(pt) === 'player' && hasPressure(pt, 'break_point'));
+  const breakReturnPts = pressurePts.filter(pt => pointServer(pt) === 'opponent' && hasPressure(pt, 'break_point'));
+  const playerGameSetMatchPts = pressurePts.filter(pt =>
+    ['game_point', 'set_point', 'match_point'].some(tag => hasPressure(pt, tag))
+  );
+  const fullCounts = countPointsByCode(all, codeForStats);
+  const sorted = sortCodeCounts(fullCounts);
+  const shotLeak = topBadMptsPattern(mptsAll);
+  const ss = setScore(m);
+  const gs = gameScore(m);
+  const g = curGame(m);
+
+  return {
+    schemaVersion: 1,
+    chartType: 'Player-centric MPTS point pivot chart, not full symmetric point charting.',
+    systemGuide: buildAiSystemGuide(),
+    match: {
+      players: { player: 'Player', opponent: 'Opponent' },
+      status: m.status,
+      format: m.format,
+      winner: m.winner || null,
+      setScore: { player: ss.p, opponent: ss.o },
+      currentSetGameScore: { player: gs.p, opponent: gs.o },
+      currentGamePointScore: {
+        player: normalizePointCount(g.pp),
+        opponent: normalizePointCount(g.op),
+        label: fmtPts(g.pp, g.op),
+      },
+    },
+    summary: {
+      totalPoints: aiPointRecord(all),
+      bigPoints: aiPointRecord(bigAll),
+      luckyWins: mptsAll.filter(pt => pt.mpts.momentum === 'BAD' && pt.mpts.outcome === 'WIN').length,
+      qualityLosses: mptsAll.filter(pt =>
+        (pt.mpts.momentum === 'GOOD' || pt.mpts.momentum === 'QUAL') && pt.mpts.outcome === 'LOSS'
+      ).length,
+      shotLeak: shotLeak ? {
+        pattern: shotLeak.key,
+        count: shotLeak.count,
+        percentOfBadMomentum: shotLeak.pct,
+        suggestedAction: mptsActionFor(shotLeak.shot, shotLeak.detail),
+      } : null,
+    },
+    serveReturn: {
+      servicePoints: aiPointRecord(servePts),
+      returnPoints: aiPointRecord(returnPts),
+      topServeLoss: topCodeFor(servePts.filter(pt => pt.side === 'opponent')),
+      topReturnLoss: topCodeFor(returnPts.filter(pt => pt.side === 'opponent')),
+    },
+    pressure: {
+      pressurePoints: aiPointRecord(pressurePts),
+      breakPointsSaved: aiPointRecord(breakServePts),
+      breakPointsConverted: aiPointRecord(breakReturnPts),
+      gameSetMatchPoints: aiPointRecord(playerGameSetMatchPts),
+      topPressurePivot: topCodeFor(pressurePts),
+    },
+    scoreSheet: {
+      description: 'Anonymized chronological score sheet from the Sheet tab. Left column is Player; right column is Opponent.',
+      text: buildScoreSheetText(m, { anonymize: true }),
+    },
+    codeBreakdown: sorted.slice(0, 12).map(([code, c]) => ({
+      code,
+      playerWon: c.p,
+      playerLost: c.o,
+      total: c.p + c.o,
+    })),
+    codeGuide: buildAiCodeGuide(),
+    points: all.map(aiPointForPayload),
+  };
+}
+
+function buildAiCoachPrompt(payload) {
+  return [
+    'You are a tennis coach analyzing a compact point-pivot chart.',
+    'Read systemGuide first. It explains how to interpret the MPTS codes, pressure tags, and summary fields.',
+    'Use both the structured stats and scoreSheet.text. The sheet gives chronological order, game breaks, and pressure labels.',
+    'Input is anonymized JSON from a player-centric MPTS tracker. It is not full match charting or full shot-by-shot charting.',
+    'Use only the data provided. Do not invent strokes, scores, tactics, injuries, emotions, or opponent tendencies not supported by the data.',
+    'Prioritize repeated patterns and coachable actions over isolated single-point events.',
+    'Return plain text only for a phone screen, under 180 words.',
+    'Include: Match read, Biggest pivot, Serve/return, Pressure, One action.',
+    'If the sample is thin, say so and keep the advice conservative.',
+    `Raw stats JSON: ${JSON.stringify(payload)}`,
+  ].join('\n\n');
+}
+
+function aiPointRecord(points) {
+  const playerWon = points.filter(pt => pt.side === 'player').length;
+  return {
+    total: points.length,
+    playerWon,
+    playerLost: points.length - playerWon,
+  };
+}
+
+function aiPointForPayload(pt, index) {
+  return {
+    index: index + 1,
+    code: codeForStats(pt.code),
+    pointWinner: pt.side,
+    big: !!(pt.big || String(pt.code || '').includes('*')),
+    mpts: hasMpts(pt) ? {
+      momentum: pt.mpts.momentum,
+      shot: pt.mpts.shot || null,
+      detail: pt.mpts.detail,
+      outcome: pt.mpts.outcome,
+    } : null,
+    context: pt.context ? normalizePointContextValue(pt.context) : null,
+  };
+}
+
+function buildAiSystemGuide() {
+  return {
+    purpose: 'MPTS records the most important player-centric reason a point pivoted, not every shot in the rally.',
+    perspective: 'Player means our player. Opponent means the other player. Point winners are from our player perspective.',
+    flow: [
+      'Momentum: GOOD, BAD, QUAL, or NA.',
+      'Shot: SRV, RET, FH, BH, TRN, or NET when a shot/phase is needed.',
+      'Detail: compact acronym describing the pivot reason.',
+      'Outcome: WIN means our player won the point; LOSS means our player lost the point.',
+    ],
+    momentum: {
+      GOOD: 'Our player created control, neutralized pressure, or produced the important positive pivot.',
+      BAD: 'Our player gave up control or made the important technical/tactical error.',
+      QUAL: 'Opponent won with quality; do not over-coach our player from this point alone.',
+      NA: 'Routine point or no clear coachable pivot before the outcome.',
+    },
+    shotContext: {
+      SRV: 'Serve appears only when our player is serving.',
+      RET: 'Return appears only when our player is returning.',
+      FH: 'Forehand rally or attack phase.',
+      BH: 'Backhand rally or attack phase.',
+      TRN: 'Transition, approach, or mid-court move-in phase.',
+      NET: 'Volley, overhead, or net finish phase.',
+    },
+    scoreContext: {
+      server: 'Stored per point from automatic server tracking.',
+      pressure: 'Automatically computed tags such as break_point, game_point, set_point, match_point, deuce, and advantage.',
+      big: 'Manual star for emotionally or tactically important points beyond formal score pressure.',
+    },
+    summaryFields: {
+      luckyWins: 'BAD plus WIN: our player won despite a negative pivot.',
+      qualityLosses: 'GOOD or QUAL plus LOSS: our player did something good or faced quality but still lost.',
+      shotLeak: 'Most repeated BAD shot/detail pattern; usually the best candidate for one practice action.',
+      codeBreakdown: 'Counts by compact MPTS code, split by points won and lost by our player.',
+      scoreSheet: 'Human-readable chronological sheet with point codes in player/opponent columns and game/set separators.',
+    },
+    coachingRule: 'Give one clear pattern and one next action. Do not turn thin data into a big conclusion.',
+  };
+}
+
+function buildAiCodeGuide() {
+  const details = [];
+  Object.entries(MPTS_TABLE.details).forEach(([shot, byMomentum]) => {
+    Object.entries(byMomentum).forEach(([momentum, options]) => {
+      options.forEach(opt => {
+        details.push({
+          shot,
+          momentum,
+          code: opt.id,
+          label: opt.label,
+          autoOutcome: opt.outcome || null,
+        });
+      });
+    });
+  });
+  Object.entries(MPTS_TABLE.autoDetails).forEach(([momentum, options]) => {
+    options.forEach(opt => {
+      details.push({
+        shot: null,
+        momentum,
+        code: opt.id,
+        label: opt.label,
+        autoOutcome: opt.outcome || null,
+      });
+    });
+  });
+
+  return {
+    momentum: MPTS_TABLE.momentum.map(opt => ({ id: opt.id, code: opt.code, label: opt.label })),
+    shots: MPTS_TABLE.shots.map(opt => ({ id: opt.id, label: opt.label })),
+    details,
+  };
+}
+
+function parseJsonOrNull(raw) {
+  try {
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) {
+    return null;
+  }
+}
+
+function geminiErrorMessage(status, data, raw) {
+  if (data && data.error && data.error.message) {
+    return `Gemini error ${status}: ${data.error.message}`;
+  }
+  return raw ? `Gemini error ${status}: ${raw.slice(0, 180)}` : `Gemini error ${status}.`;
+}
+
+function extractGeminiText(data) {
+  const candidates = data && Array.isArray(data.candidates) ? data.candidates : [];
+  if (candidates.length === 0) return '';
+  const content = candidates[0].content;
+  const parts = content && Array.isArray(content.parts) ? content.parts : [];
+  return parts.map(part => part && typeof part.text === 'string' ? part.text : '').filter(Boolean).join('\n').trim();
 }
 
 // ============================================================
