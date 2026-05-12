@@ -1292,6 +1292,8 @@ const AI_KEY_STORAGE = 'tennis_pivot_tracker_gemini_api_key';
 const AI_MODE_STORAGE = 'tennis_pivot_tracker_ai_mode';
 const AI_MODEL = 'gemini-pro-latest';
 const AI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent`;
+const DEFAULT_TAB = 'record';
+const VALID_TABS = ['record', 'sheet', 'stats', 'ai', 'guide', 'matches'];
 
 // Tennis point labels
 const PTS = ['0', '15', '30', '40'];
@@ -3069,13 +3071,32 @@ function confirmDelete() {
 // NAVIGATION
 // ============================================================
 
-function switchTab(id) {
-  qsa('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
-  qsa('.screen').forEach(s => s.classList.toggle('active', s.id === `screen-${id}`));
-  if (id === 'ai') renderAiCoach();
+function normalizeTabId(id) {
+  return VALID_TABS.includes(id) ? id : DEFAULT_TAB;
+}
+
+function tabIdFromLocation() {
+  const hash = window.location.hash.replace(/^#/, '');
+  return normalizeTabId(hash);
+}
+
+function updateTabHash(id) {
+  const hash = `#${id}`;
+  if (window.location.hash !== hash) {
+    window.history.replaceState(null, '', hash);
+  }
+}
+
+function switchTab(id, options = {}) {
+  const tabId = normalizeTabId(id);
+  qsa('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
+  qsa('.screen').forEach(s => s.classList.toggle('active', s.id === `screen-${tabId}`));
+  if (!options.skipHash) updateTabHash(tabId);
+  if (tabId === 'ai') renderAiCoach();
 }
 
 qsa('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+window.addEventListener('hashchange', () => switchTab(tabIdFromLocation(), { skipHash: true }));
 
 function loadMatch(id) {
   currentId = id;
@@ -4460,6 +4481,7 @@ function toast(msg, type) {
 
 load();
 renderAll();
+switchTab(tabIdFromLocation(), { skipHash: true });
 </script>
 </body>
 </html>
