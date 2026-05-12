@@ -39,6 +39,7 @@
 ## What it tracks
 
 - Score, games, sets, server, first/second serve.
+- Game, set, and match duration from the first recorded stat to each automatic finish.
 - Break points, game points, set points, match points, deuce, and advantage.
 - Manual big-point tags.
 - MPTS 2.0 point pivots:

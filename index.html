@@ -201,6 +201,17 @@
 
     .scorebug-stat-muted { opacity: 0.72; }
 
+    .scorebug-time {
+      margin-top: 7px;
+      padding-top: 7px;
+      border-top: 1px solid rgba(255,255,255,0.18);
+      color: rgba(255,255,255,0.86);
+      font-size: 0.72rem;
+      font-weight: 700;
+      line-height: 1.35;
+      text-align: center;
+    }
+
     /* ====================================================
        POINT ENTRY BUTTONS
     ==================================================== */
@@ -1010,6 +1021,7 @@
           <strong><span id="pSets">0</span> – <span id="oSets">0</span></strong>
         </div>
       </div>
+      <div class="scorebug-time" id="durationSummary">Time starts with first stat</div>
     </div>
 
     <!-- Point entry -->
@@ -1130,6 +1142,7 @@
       <tr><td>Serve used</td><td>Use the 1st/2nd toggle before recording a point. It resets to 1st after each point; second serves are shown as 2nd on the sheet.</td></tr>
       <tr><td>Shot filter</td><td>The shot screen uses the server context to hide impossible SRV/RET choices.</td></tr>
       <tr><td>Pressure</td><td>Break, game, set, match, deuce, and advantage tags are computed automatically from the score.</td></tr>
+      <tr><td>Time of play</td><td>Game, set, and match timers start with the first recorded stat and close automatically when each segment finishes.</td></tr>
       <tr><td>*</td><td>Still manual: use it for emotional or momentum points that matter beyond the formal score.</td></tr>
     </table>
   </div>
@@ -1297,7 +1310,7 @@ const VALID_TABS = ['record', 'sheet', 'stats', 'ai', 'guide', 'matches'];
 
 // Tennis point labels
 const PTS = ['0', '15', '30', '40'];
-const EXPORT_VERSION = 2;
+const EXPORT_VERSION = 3;
 
 const MPTS_TABLE = {
   momentum: [
@@ -1695,7 +1708,7 @@ function detectGameWinnerFromCounts(p, o, format, gameKind = 'standard', tiebrea
   return null;
 }
 
-function newSet(server = null)  { return { games: [newGame(server)], winner: null }; }
+function newSet(server = null)  { return { games: [newGame(server)], winner: null, timing: blankTiming() }; }
 function newGame(server = null, kind = 'standard', tiebreakTarget = null) {
   const normalizedKind = kind === 'tiebreak' ? 'tiebreak' : 'standard';
   const normalizedServer = isSide(server) ? server : null;
@@ -1708,9 +1721,199 @@ function newGame(server = null, kind = 'standard', tiebreakTarget = null) {
     server: normalizedServer,
     tiebreakTarget: normalizedKind === 'tiebreak' ? normalizePointCount(tiebreakTarget, 7) : null,
     initialTiebreakServer: normalizedKind === 'tiebreak' ? normalizedServer : null,
+    timing: blankTiming(),
   };
 }
 function newTiebreakGame(server, target) { return newGame(server, 'tiebreak', target); }
+
+function blankTiming() {
+  return { startedAt: null, completedAt: null, durationMs: null };
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function normalizeTimestamp(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
+function normalizeDurationMs(value) {
+  const ms = Number(value);
+  return Number.isFinite(ms) && ms >= 0 ? Math.round(ms) : null;
+}
+
+function elapsedMsBetween(startedAt, completedAt) {
+  const start = normalizeTimestamp(startedAt);
+  const end = normalizeTimestamp(completedAt);
+  if (!start || !end) return null;
+  return Math.max(0, new Date(end).getTime() - new Date(start).getTime());
+}
+
+function normalizeTimingValue(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  const startedAt = normalizeTimestamp(source.startedAt);
+  const completedAt = startedAt ? normalizeTimestamp(source.completedAt) : null;
+  const durationMs = startedAt && completedAt ? elapsedMsBetween(startedAt, completedAt) : null;
+  return { startedAt, completedAt, durationMs };
+}
+
+function sameTiming(a, b) {
+  return a.startedAt === b.startedAt && a.completedAt === b.completedAt && a.durationMs === b.durationMs;
+}
+
+function replaceTiming(record, timing) {
+  const next = normalizeTimingValue(timing);
+  if (!record.timing || !sameTiming(normalizeTimingValue(record.timing), next)) {
+    record.timing = next;
+    return true;
+  }
+  return false;
+}
+
+function ensureTiming(record) {
+  if (!record || typeof record !== 'object') return blankTiming();
+  const normalized = normalizeTimingValue(record.timing);
+  record.timing = normalized;
+  return normalized;
+}
+
+function startTiming(record, timestamp) {
+  const t = ensureTiming(record);
+  const startedAt = normalizeTimestamp(timestamp) || nowIso();
+  if (!t.startedAt) t.startedAt = startedAt;
+  t.completedAt = null;
+  t.durationMs = null;
+}
+
+function completeTiming(record, timestamp) {
+  const t = ensureTiming(record);
+  const completedAt = normalizeTimestamp(timestamp) || nowIso();
+  if (!t.startedAt) t.startedAt = completedAt;
+  t.completedAt = completedAt;
+  t.durationMs = elapsedMsBetween(t.startedAt, completedAt);
+}
+
+function reopenTiming(record) {
+  const t = ensureTiming(record);
+  t.completedAt = null;
+  t.durationMs = null;
+}
+
+function clearTiming(record) {
+  if (record && typeof record === 'object') record.timing = blankTiming();
+}
+
+function pointTimeRange(points) {
+  const stamps = (Array.isArray(points) ? points : [])
+    .map(pt => normalizeTimestamp(pt && pt.recordedAt))
+    .filter(Boolean);
+  if (stamps.length === 0) return { startedAt: null, completedAt: null };
+  return { startedAt: stamps[0], completedAt: stamps[stamps.length - 1] };
+}
+
+function setTimeRange(s) {
+  const stamps = [];
+  if (s && Array.isArray(s.games)) {
+    s.games.forEach(g => {
+      (Array.isArray(g.points) ? g.points : []).forEach(pt => {
+        const recordedAt = normalizeTimestamp(pt && pt.recordedAt);
+        if (recordedAt) stamps.push(recordedAt);
+      });
+    });
+  }
+  if (stamps.length === 0) return { startedAt: null, completedAt: null };
+  return { startedAt: stamps[0], completedAt: stamps[stamps.length - 1] };
+}
+
+function matchTimeRange(m) {
+  const stamps = allMatchPoints(m).map(pt => normalizeTimestamp(pt && pt.recordedAt)).filter(Boolean);
+  if (stamps.length === 0) return { startedAt: null, completedAt: null };
+  return { startedAt: stamps[0], completedAt: stamps[stamps.length - 1] };
+}
+
+function timingFromRange(range, completed) {
+  if (!range || !range.startedAt) return blankTiming();
+  const completedAt = completed && range.completedAt ? range.completedAt : null;
+  return {
+    startedAt: range.startedAt,
+    completedAt,
+    durationMs: completedAt ? elapsedMsBetween(range.startedAt, completedAt) : null,
+  };
+}
+
+function reconcileGameTiming(g) {
+  const range = pointTimeRange(g && g.points);
+  if (range.startedAt || (Array.isArray(g.points) && g.points.length === 0)) {
+    return replaceTiming(g, timingFromRange(range, !!g.winner));
+  }
+  return replaceTiming(g, normalizeTimingValue(g.timing));
+}
+
+function reconcileSetTiming(s) {
+  const range = setTimeRange(s);
+  const pointCount = s && Array.isArray(s.games)
+    ? s.games.reduce((sum, g) => sum + (Array.isArray(g.points) ? g.points.length : 0), 0)
+    : 0;
+  if (range.startedAt || pointCount === 0) {
+    return replaceTiming(s, timingFromRange(range, !!s.winner));
+  }
+  return replaceTiming(s, normalizeTimingValue(s.timing));
+}
+
+function reconcileMatchTiming(m) {
+  const range = matchTimeRange(m);
+  const pointCount = allMatchPoints(m).length;
+  if (range.startedAt || pointCount === 0) {
+    return replaceTiming(m, timingFromRange(range, m.status === 'completed'));
+  }
+  return replaceTiming(m, normalizeTimingValue(m.timing));
+}
+
+function currentDurationMs(record) {
+  const t = normalizeTimingValue(record && record.timing);
+  if (!t.startedAt) return null;
+  if (t.completedAt) return t.durationMs;
+  return elapsedMsBetween(t.startedAt, nowIso());
+}
+
+function formatDuration(ms) {
+  const totalSeconds = normalizeDurationMs(ms);
+  if (totalSeconds === null) return '—';
+  const seconds = Math.round(totalSeconds / 1000);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+  const pad = value => String(value).padStart(2, '0');
+  return hours > 0
+    ? `${hours}:${pad(minutes)}:${pad(remainingSeconds)}`
+    : `${minutes}:${pad(remainingSeconds)}`;
+}
+
+function timingLabel(record) {
+  const ms = currentDurationMs(record);
+  return ms === null ? '—' : formatDuration(ms);
+}
+
+function timingMeta(record, label = 'Time') {
+  const value = timingLabel(record);
+  return value === '—' ? '' : `${label} ${value}`;
+}
+
+function durationSummaryText(m) {
+  if (!m || !normalizeTimingValue(m.timing).startedAt) return 'Time starts with first stat';
+  return durationLineText(m, curSet(m), curGame(m)) || 'Time starts with first stat';
+}
+
+function durationLineText(m, s, g) {
+  return [
+    timingMeta(g, 'Game'),
+    timingMeta(s, 'Set'),
+    timingMeta(m, 'Match'),
+  ].filter(Boolean).join(' · ');
+}
 
 function normalizeStoredMatches() {
   let changed = false;
@@ -1724,6 +1927,7 @@ function normalizeMatchRecord(m) {
   let changed = false;
   if (!m || typeof m !== 'object' || !Array.isArray(m.sets)) return false;
 
+  changed = replaceTiming(m, normalizeTimingValue(m.timing)) || changed;
   const normalizedFormat = normalizeMatchFormat(m.matchFormat, m.format);
   if (JSON.stringify(m.matchFormat) !== JSON.stringify(normalizedFormat)) {
     m.matchFormat = normalizedFormat;
@@ -1744,11 +1948,14 @@ function normalizeMatchRecord(m) {
   }
   m.sets.forEach(s => {
     if (!s || typeof s !== 'object' || !Array.isArray(s.games)) return;
+    changed = replaceTiming(s, normalizeTimingValue(s.timing)) || changed;
     s.games.forEach(g => {
       if (g && typeof g === 'object') changed = normalizeGame(g) || changed;
     });
+    changed = reconcileSetTiming(s) || changed;
     changed = normalizeActiveSetTiebreak(m, s) || changed;
   });
+  changed = reconcileMatchTiming(m) || changed;
   return changed;
 }
 
@@ -1765,6 +1972,7 @@ function normalizeActiveSetTiebreak(m, s) {
 
 function normalizeGame(g) {
   let changed = false;
+  changed = replaceTiming(g, normalizeTimingValue(g.timing)) || changed;
   const kind = g.kind === 'tiebreak' ? 'tiebreak' : 'standard';
   if (g.kind !== kind) {
     g.kind = kind;
@@ -1808,6 +2016,7 @@ function normalizeGame(g) {
     if (pt && typeof pt === 'object') changed = normalizeStoredPoint(pt) || changed;
   });
   changed = normalizeGamePointCounts(g) || changed;
+  changed = reconcileGameTiming(g) || changed;
   return changed;
 }
 
@@ -1860,6 +2069,11 @@ function normalizeStoredPoint(pt) {
       pt.context = normalized;
       changed = true;
     }
+  }
+  const recordedAt = normalizeTimestamp(pt.recordedAt);
+  if (pt.recordedAt !== recordedAt) {
+    pt.recordedAt = recordedAt;
+    changed = true;
   }
   return changed;
 }
@@ -2048,6 +2262,7 @@ function createMatch() {
     player, opponent, date, format, matchFormat: matchFmt, firstServer,
     status: 'active',
     aiContext: '',
+    timing: blankTiming(),
     sets: [newSet(firstServer)],
   };
 
@@ -2254,6 +2469,7 @@ function recordPoint() {
 
   const g = curGame(m);
   normalizeGamePointCounts(g);
+  const recordedAt = nowIso();
   const mpts = {
     momentum: pending.momentum,
     shot: pending.shot || null,
@@ -2261,6 +2477,9 @@ function recordPoint() {
     outcome: pending.outcome,
   };
   const context = currentPointContext(m, g, serveAttemptForMpts(mpts));
+  startTiming(m, recordedAt);
+  startTiming(curSet(m), recordedAt);
+  startTiming(g, recordedAt);
 
   const pt = {
     code: buildCode(),
@@ -2269,13 +2488,14 @@ function recordPoint() {
     leak: false,
     mpts,
     context,
+    recordedAt,
   };
 
   g.points.push(pt);
   if (outcome.side === 'player') g.pp++; else g.op++;
 
   const gameWinner = detectGameWinner(g, m);
-  if (gameWinner) finishCurrentGame(m, gameWinner);
+  if (gameWinner) finishCurrentGame(m, gameWinner, recordedAt);
 
   save();
   cancelPoint();
@@ -2297,30 +2517,44 @@ function undoLast() {
 
   if (g.winner && g.points.length > 0) {
     g.winner = null;
-    if (s.winner) s.winner = null;
+    reopenTiming(g);
+    if (s.winner) {
+      s.winner = null;
+      reopenTiming(s);
+    }
     m.status = 'active';
     m.winner = null;
+    reopenTiming(m);
   } else if (g.points.length > 0) {
     const removed = g.points.pop();
     if (removed.side === 'player') g.pp--; else g.op--;
+    if (g.points.length === 0) clearTiming(g);
   } else if (s.games.length > 1) {
     // Undo end-of-game: remove current empty game, restore previous
     s.games.pop();
     const prev = curGame(m);
     prev.winner = null;
+    reopenTiming(prev);
     // If set was marked complete, undo that too
-    if (s.winner) { s.winner = null; }
+    if (s.winner) {
+      s.winner = null;
+      reopenTiming(s);
+    }
   } else if (m.sets.length > 1) {
     // Undo end-of-set: remove current empty set, restore previous
     m.sets.pop();
     const prevSet = curSet(m);
     prevSet.winner = null;
+    reopenTiming(prevSet);
     const prevGame = curGame(m);
     prevGame.winner = null;
+    reopenTiming(prevGame);
     m.status = 'active';
     m.winner = null;
+    reopenTiming(m);
   }
 
+  normalizeMatchRecord(m);
   save();
   renderAll();
 }
@@ -2329,7 +2563,7 @@ function undoLast() {
 // END GAME / SET / MATCH
 // ============================================================
 
-function finishCurrentGame(m, winner) {
+function finishCurrentGame(m, winner, completedAt = nowIso()) {
   if (!m || m.status === 'completed') return false;
   if (winner !== 'player' && winner !== 'opponent') {
     toast('Choose a game winner', 'error');
@@ -2339,18 +2573,21 @@ function finishCurrentGame(m, winner) {
   const s = curSet(m);
   const g = curGame(m);
   g.winner = winner;
+  completeTiming(g, completedAt);
   const nextServer = nextServerAfterCurrentGame(m);
 
   const setWinner = detectSetWinner(m, s);
 
   if (setWinner) {
     s.winner = setWinner;
+    completeTiming(s, completedAt);
     const ss = setScore(m);
     const needed = setsNeeded(m);
 
     if (ss.p >= needed || ss.o >= needed) {
       m.status  = 'completed';
       m.winner  = ss.p >= needed ? 'player' : 'opponent';
+      completeTiming(m, completedAt);
     } else {
       m.sets.push(newSet(nextServer));
     }
@@ -2421,7 +2658,8 @@ function renderRecord() {
   // Complete banner
   if (completed) {
     const winnerName = m.winner === 'player' ? m.player : m.opponent;
-    qs('#completeBannerText').textContent = `${winnerName} wins!`;
+    const matchTime = timingMeta(m, 'Match');
+    qs('#completeBannerText').textContent = `${winnerName} wins!${matchTime ? ` · ${matchTime}` : ''}`;
     show('completeBanner');
     qs('#codeBuilder').classList.add('hidden');
   } else {
@@ -2439,6 +2677,7 @@ function renderRecord() {
 
   const g = curGame(m);
   qs('#tennisPts').textContent = fmtPts(g, m);
+  qs('#durationSummary').textContent = durationSummaryText(m);
   renderPointContext(m);
   if (!completed) renderMptsStep();
   renderCurrentGameSheet(m);
@@ -2487,7 +2726,7 @@ function renderCurrentGameSheet(m) {
       <span>${esc(m.opponent)}</span>
     </div>
       <div class="sheet-scroll" id="recordSheetScroll">
-      <div class="sheet-game-sep">${currentGameLabel(setNumber, gameNumber, g)}</div>`;
+      <div class="sheet-game-sep">${currentGameLabel(setNumber, gameNumber, g, s, m)}</div>`;
 
   if (g.points.length === 0) {
     html += '<div class="sheet-empty">No points recorded in this game yet.</div>';
@@ -2512,7 +2751,9 @@ function renderCurrentGameSheet(m) {
     const winLabel = g.winner === 'player'
       ? `${gameLabel} ${esc(shortName(m.player, 'Player'))}`
       : `${gameLabel} ${esc(shortName(m.opponent, 'Opponent'))}`;
-    html += `<div class="sheet-game-sep">── ${winLabel} (${g.pp}–${g.op} pts) ──</div>`;
+    const gameTime = durationLineText(m, s, g);
+    const gameDetail = gameTime ? `${g.pp}–${g.op} pts · ${esc(gameTime)}` : `${g.pp}–${g.op} pts`;
+    html += `<div class="sheet-game-sep">── ${winLabel} (${gameDetail}) ──</div>`;
   }
 
   html += '</div></div>';
@@ -2542,9 +2783,8 @@ function renderSheet() {
     <div class="sheet-scroll" id="sheetScroll">`;
 
   m.sets.forEach((s, si) => {
-    if (si > 0) {
-      html += `<div class="sheet-set-hdr">── Set ${si + 1} ──</div>`;
-    }
+    const setTime = timingMeta(s, 'Time');
+    html += `<div class="sheet-set-hdr">── Set ${si + 1}${setTime ? ` · ${esc(setTime)}` : ''} ──</div>`;
     s.games.forEach((g, gi) => {
       g.points.forEach(pt => {
         const isBig  = pt.big || String(pt.code || '').includes('*');
@@ -2564,13 +2804,16 @@ function renderSheet() {
         const winLabel = g.winner === 'player'
           ? `${gameLabel} ${esc(shortName(m.player, 'Player'))}`
           : `${gameLabel} ${esc(shortName(m.opponent, 'Opponent'))}`;
-        html += `<div class="sheet-game-sep">── ${winLabel} (${g.pp}–${g.op} pts) ──</div>`;
+        const gameTime = durationLineText(m, s, g);
+        const gameDetail = gameTime ? `${g.pp}–${g.op} pts · ${esc(gameTime)}` : `${g.pp}–${g.op} pts`;
+        html += `<div class="sheet-game-sep">── ${winLabel} (${gameDetail}) ──</div>`;
       }
     });
     if (s.winner) {
       const sp = s.games.filter(g => g.winner === 'player').length;
       const so = s.games.filter(g => g.winner === 'opponent').length;
-      html += `<div class="sheet-set-hdr">Score: ${sp}–${so}</div>`;
+      const setScoreTime = timingMeta(s, 'Time');
+      html += `<div class="sheet-set-hdr">Score: ${sp}–${so}${setScoreTime ? ` · ${esc(setScoreTime)}` : ''}</div>`;
     }
   });
 
@@ -2733,10 +2976,11 @@ function renderMatchList() {
     const ss = setScore(m);
     const isActive = m.id === currentId;
     const done = m.status === 'completed';
+    const matchTime = timingMeta(m, 'Time');
     html += `<div class="match-card${isActive ? ' current' : ''}" onclick="loadMatch('${m.id}')">
       <div style="flex:1;min-width:0">
         <div class="match-vs">${esc(m.player)} vs ${esc(m.opponent)}${isActive ? ' 🟢' : ''}</div>
-        <div class="match-meta">${esc(m.date)} · ${esc(formatSummary(m))}${done ? ' · ✓ Complete' : ''}</div>
+        <div class="match-meta">${esc(m.date)} · ${esc(formatSummary(m))}${matchTime ? ` · ${esc(matchTime)}` : ''}${done ? ' · ✓ Complete' : ''}</div>
       </div>
       <div class="match-score${done ? ' match-done' : ''}">${ss.p}–${ss.o}</div>
       <div class="match-actions">
@@ -2843,6 +3087,7 @@ function normalizeImportedMatch(m, usedIds) {
     firstServer: isSide(m.firstServer) ? m.firstServer : null,
     status: m.status === 'completed' ? 'completed' : 'active',
     aiContext: normalizeAiContext(m.aiContext),
+    timing: normalizeTimingValue(m.timing),
     sets: Array.isArray(m.sets) ? m.sets.map(normalizeImportedSet).filter(Boolean) : [],
   };
   if (m.winner === 'player' || m.winner === 'opponent') normalized.winner = m.winner;
@@ -2858,6 +3103,7 @@ function normalizeImportedSet(s) {
   return {
     games,
     winner: s.winner === 'player' || s.winner === 'opponent' ? s.winner : null,
+    timing: normalizeTimingValue(s.timing),
   };
 }
 
@@ -2873,6 +3119,7 @@ function normalizeImportedGame(g) {
     server: isSide(g.server) ? g.server : null,
     tiebreakTarget: [7, 10].includes(Number(g.tiebreakTarget)) ? Number(g.tiebreakTarget) : null,
     initialTiebreakServer: isSide(g.initialTiebreakServer) ? g.initialTiebreakServer : null,
+    timing: normalizeTimingValue(g.timing),
   };
 }
 
@@ -2893,6 +3140,7 @@ function normalizeImportedPoint(pt) {
     leak: false,
     mpts,
     context: normalizePointContextValue(pt.context),
+    recordedAt: normalizeTimestamp(pt.recordedAt),
   };
 }
 
@@ -2965,12 +3213,14 @@ function buildScoreSheetText(m, options) {
   const playerName = anonymize ? 'Player' : m.player;
   const opponentName = anonymize ? 'Opponent' : m.opponent;
   const COL = 24;
-  let txt = `${playerName} vs ${opponentName} — ${m.date}\n${formatSummary(m)}\n\n`;
+  const matchTime = timingMeta(m, 'Time');
+  let txt = `${playerName} vs ${opponentName} — ${m.date}\n${formatSummary(m)}${matchTime ? ` · ${matchTime}` : ''}\n\n`;
   txt += `${(anonymize ? 'Player' : 'Our Player').padEnd(COL)}| Opponent\n`;
   txt += `${'-'.repeat(COL)}|${'-'.repeat(COL)}\n`;
 
   m.sets.forEach((s, si) => {
-    if (si > 0) txt += `\n── Set ${si + 1} ──\n`;
+    const setTime = timingMeta(s, 'Time');
+    txt += `\n── Set ${si + 1}${setTime ? ` · ${setTime}` : ''} ──\n`;
     s.games.forEach(g => {
       g.points.forEach(pt => {
         const tags = pointTextTags(pt);
@@ -2985,13 +3235,15 @@ function buildScoreSheetText(m, options) {
       if (g.winner) {
         const wn = g.winner === 'player' ? playerName : opponentName;
         const gameLabel = isTieBreakGame(g) ? tiebreakLabel(g) : 'Game';
-        txt += `${'-'.repeat(COL)}  ${gameLabel} ${wn}\n`;
+        const gameTime = durationLineText(m, s, g);
+        txt += `${'-'.repeat(COL)}  ${gameLabel} ${wn}${gameTime ? ` · ${gameTime}` : ''}\n`;
       }
     });
     if (s.winner) {
       const sp = s.games.filter(g => g.winner === 'player').length;
       const so = s.games.filter(g => g.winner === 'opponent').length;
-      txt += `\nScore: ${sp}–${so}\n`;
+      const setScoreTime = timingMeta(s, 'Time');
+      txt += `\nScore: ${sp}–${so}${setScoreTime ? ` · ${setScoreTime}` : ''}\n`;
     }
   });
 
@@ -3191,9 +3443,12 @@ function mptsKey(pt) {
   if (!hasMpts(pt)) return '';
   return pt.mpts.shot ? `${pt.mpts.shot}-${pt.mpts.detail}` : `${pt.mpts.momentum}-${pt.mpts.detail}`;
 }
-function currentGameLabel(setNumber, gameNumber, g = null) {
+function currentGameLabel(setNumber, gameNumber, g = null, s = null, m = null) {
+  const match = m || cur();
+  const set = s || (match ? curSet(match) : null);
   const gameLabel = isTieBreakGame(g) ? `${tiebreakLabel(g)} Tie-break` : `Game ${gameNumber}`;
-  return `Current Game: Set ${setNumber}, ${gameLabel}`;
+  const gameTime = durationLineText(match, set, g);
+  return `Current Game: Set ${setNumber}, ${gameLabel}${gameTime ? ` · ${gameTime}` : ''}`;
 }
 function updateRecordSheetStatus(message) {
   const el = qs('#recordSheetStatus');
@@ -3372,6 +3627,14 @@ function buildStatsModel(m) {
         player: normalizePointCount(g.pp),
         opponent: normalizePointCount(g.op),
         label: fmtPts(g, m),
+      },
+      timing: {
+        match: timingLabel(m),
+        set: timingLabel(curSet(m)),
+        game: timingLabel(g),
+        matchDurationMs: currentDurationMs(m),
+        setDurationMs: currentDurationMs(curSet(m)),
+        gameDurationMs: currentDurationMs(g),
       },
     },
     points: {
@@ -3682,6 +3945,7 @@ function renderMatchContext(model) {
     : '';
   const body = `<div class="metric-grid">
     ${metricTextTileHtml('Format', esc(m.format), '')}
+    ${metricTextTileHtml('Time', esc(m.timing.match), `Set ${esc(m.timing.set)} · Game ${esc(m.timing.game)}`)}
     ${metricTextTileHtml('Sets', scoreHtml(m.setScore), 'match score')}
     ${metricTextTileHtml('Games', scoreHtml(m.gameScore), 'current set')}
     ${metricRecordTileHtml('Total points', model.summary.totalPoints)}
@@ -4109,6 +4373,14 @@ function buildAiCoachPayload(m, mode = getAiMode(), coachContextText = aiContext
         opponent: model.match.pointScore.opponent,
         label: model.match.pointScore.label,
       },
+      timing: {
+        matchDuration: model.match.timing.match,
+        currentSetDuration: model.match.timing.set,
+        currentGameDuration: model.match.timing.game,
+        matchDurationMs: model.match.timing.matchDurationMs,
+        currentSetDurationMs: model.match.timing.setDurationMs,
+        currentGameDurationMs: model.match.timing.gameDurationMs,
+      },
     },
     summary: {
       totalPoints: aiRecordFromStatsRecord(model.summary.totalPoints),
@@ -4347,6 +4619,7 @@ function aiPointForPayload(pt, index) {
     code: codeForStats(pt.code),
     pointWinner: pt.side,
     big: !!(pt.big || String(pt.code || '').includes('*')),
+    recordedAt: normalizeTimestamp(pt.recordedAt),
     mpts: hasMpts(pt) ? {
       momentum: pt.mpts.momentum,
       shot: pt.mpts.shot || null,
