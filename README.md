@@ -23,7 +23,7 @@
 - Optional Gemini-powered coaching layer.
 - Live-match cues when you need a quick tactical nudge.
 - Set and match reviews when you want the bigger pattern.
-- Uses anonymized match stats, not player names.
+- Uses anonymized match stats; optional coach-entered context is sent as written.
 - API key stays in your browser.
 - The app still works perfectly without AI.
 
