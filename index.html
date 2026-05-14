@@ -240,12 +240,23 @@
 
     .context-pressure:empty { display: none; }
 
+    .point-meta-controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
     .serve-attempt-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
       margin-bottom: 8px;
+    }
+
+    .point-meta-controls .serve-attempt-row {
+      margin-bottom: 0;
     }
 
     .serve-attempt-label {
@@ -1026,7 +1037,10 @@
 
       <!-- Point entry -->
       <div class="code-builder hidden" id="codeBuilder">
-        <div id="serveAttemptControl"></div>
+        <div class="point-meta-controls" id="pointMetaControls">
+          <div id="serveAttemptControl"></div>
+          <div id="rallyBandControl"></div>
+        </div>
         <div id="dptFlow"></div>
 
         <!-- Action buttons -->
@@ -1140,6 +1154,7 @@
       <tr><th>Context</th><th>How it works</th></tr>
       <tr><td>Server</td><td>Choose the first server once. The app alternates by game; use Srv only to correct the current game.</td></tr>
       <tr><td>Serve used</td><td>Use the 1st/2nd toggle before recording a point. It resets to 1st after each point; second serves are shown as 2nd on the sheet.</td></tr>
+      <tr><td>Rally</td><td>Use Q for quick points decided in 0-4 shots. Tap L when the rally reaches 5+ shots; Q/L appears on the sheet and powers grind stats.</td></tr>
       <tr><td>Tree filter</td><td>The tree uses server context to hide impossible serve and return choices.</td></tr>
       <tr><td>Pressure</td><td>Break, game, set, match, deuce, and advantage tags are computed automatically from the score.</td></tr>
       <tr><td>Time of play</td><td>Game, set, and match timers start with the first recorded stat and close automatically when each segment finishes.</td></tr>
@@ -1150,8 +1165,8 @@
   <div class="guide-section">
     <h3>Stats Rule</h3>
     <p style="font-size:0.82rem;line-height:1.6">
-      The Stats screen keeps serve, return, and pressure splits, then separates the main
-      <strong>technical</strong> and <strong>tactical</strong> diagnostic leaks into one pattern and one action.
+      The Stats screen keeps serve, return, Q/L rally, and pressure splits, then separates the main
+      <strong>technical</strong> and <strong>tactical</strong> diagnostic leaks into development patterns and actions.
     </p>
   </div>
 
@@ -1162,8 +1177,8 @@
       <tr><th>Pattern</th><th>Action</th></tr>
       <tr><td>Many E-BH-NET-L losses</td><td>Rebuild backhand shape and net clearance</td></tr>
       <tr><td>Many E-DFL-L points</td><td>Simplify second-serve target and build spin margin</td></tr>
+      <tr><td>Low L-point record</td><td>Train 5+ shot shape, height, and safer targets</td></tr>
       <tr><td>Many T-FH-TGT losses</td><td>Add a target-selection cue before attacking</td></tr>
-      <tr><td>Many N-RALLY-QAL losses</td><td>Do not over-coach; opponent quality drove the point</td></tr>
     </table>
   </div>
 </div>
@@ -1317,6 +1332,11 @@ const EXPORT_VERSION = 4;
 const DPT_OUTCOMES = [
   { id: 'WIN', code: 'W', label: 'WIN', side: 'player', cls: 'dpt-win' },
   { id: 'LOSS', code: 'L', label: 'LOSS', side: 'opponent', cls: 'dpt-loss' },
+];
+
+const RALLY_BANDS = [
+  { id: 'quick', code: 'Q', label: 'Quick', detail: '0-4' },
+  { id: 'long', code: 'L', label: 'Long', detail: '5+' },
 ];
 
 const DPT_TREE = [
@@ -1510,6 +1530,7 @@ let pending = {
   outcome: null,
   big: false,
   serveAttempt: 'first',
+  rallyBand: 'quick',
 };
 
 let deleteTargetId = null;
@@ -2142,6 +2163,11 @@ function normalizeStoredPoint(pt) {
     pt.big = String(pt.code || '').includes('*');
     changed = true;
   }
+  const normalizedRallyBand = normalizeRallyBand(pt.rallyBand);
+  if (pt.rallyBand !== normalizedRallyBand) {
+    pt.rallyBand = normalizedRallyBand;
+    changed = true;
+  }
   if (pt.context !== undefined) {
     const normalized = normalizePointContextValue(pt.context);
     if (JSON.stringify(pt.context) !== JSON.stringify(normalized)) {
@@ -2328,6 +2354,11 @@ function normalizeServeAttempt(value) {
   return 'unknown';
 }
 
+function normalizeRallyBand(value) {
+  if (value === 'quick' || value === 'long') return value;
+  return null;
+}
+
 function normalizePressureList(value) {
   if (!Array.isArray(value)) return [];
   return Array.from(new Set(value.filter(tag => Object.prototype.hasOwnProperty.call(PRESSURE_LABELS, tag))));
@@ -2369,7 +2400,7 @@ function today() { return new Date().toISOString().slice(0, 10); }
 // ============================================================
 
 function resetPending() {
-  pending = { path: [], outcome: null, big: false, serveAttempt: 'first' };
+  pending = { path: [], outcome: null, big: false, serveAttempt: 'first', rallyBand: 'quick' };
 }
 
 function startPoint() {
@@ -2378,6 +2409,7 @@ function startPoint() {
   qs('#btnBig').classList.remove('sel-amber');
   qs('#codeBuilder').classList.remove('hidden');
   renderServeAttemptToggle();
+  renderRallyBandToggle();
   renderDptStep();
 }
 
@@ -2385,6 +2417,7 @@ function cancelPoint() {
   resetPending();
   qs('#btnBig').classList.remove('sel-amber');
   renderServeAttemptToggle();
+  renderRallyBandToggle();
   if (!cur() || cur().status === 'completed') {
     qs('#codeBuilder').classList.add('hidden');
     qs('#dptFlow').innerHTML = '';
@@ -2497,6 +2530,20 @@ function setPendingServeAttempt(value) {
   renderServeAttemptToggle();
 }
 
+function currentPendingRallyBand() {
+  return normalizeRallyBand(pending.rallyBand) || 'quick';
+}
+
+function setPendingRallyBand(value) {
+  const band = normalizeRallyBand(value);
+  if (!band) {
+    toast('Choose Q for 0-4 shots or L for 5+ shots', 'error');
+    return;
+  }
+  pending.rallyBand = band;
+  renderRallyBandToggle();
+}
+
 function serveAttemptForDpt(dpt) {
   if (dpt && dpt.pathKey === 'BAD_TECHNICAL.DFL') {
     return 'second';
@@ -2528,6 +2575,7 @@ function recordPoint() {
     side: outcome.side,
     big: pending.big,
     leak: false,
+    rallyBand: currentPendingRallyBand(),
     dpt,
     context,
     recordedAt,
@@ -2736,6 +2784,7 @@ function renderPointContext(m) {
   roleEl.textContent = ctx.server ? `${role}: ${serverName}` : role;
   roleEl.classList.toggle('context-unknown', !ctx.server);
   renderServeAttemptToggle();
+  renderRallyBandToggle();
   qs('#contextPressure').innerHTML = pressureTagHtml(ctx.pressure, false);
 }
 
@@ -2753,6 +2802,24 @@ function renderServeAttemptToggle() {
     <div class="serve-attempt-toggle" role="group" aria-label="Serve used for this point">
       <button class="serve-attempt-btn${current === 'first' ? ' is-active' : ''}" onclick="setPendingServeAttempt('first')" aria-pressed="${current === 'first'}">1st</button>
       <button class="serve-attempt-btn${current === 'second' ? ' is-active' : ''}" onclick="setPendingServeAttempt('second')" aria-pressed="${current === 'second'}">2nd</button>
+    </div>
+  </div>`;
+}
+
+function renderRallyBandToggle() {
+  const el = qs('#rallyBandControl');
+  if (!el) return;
+  const m = cur();
+  if (!m || m.status === 'completed') {
+    el.innerHTML = '';
+    return;
+  }
+  const current = currentPendingRallyBand();
+  el.innerHTML = `<div class="serve-attempt-row">
+    <span class="serve-attempt-label">Rally</span>
+    <div class="serve-attempt-toggle" role="group" aria-label="Rally length for this point">
+      <button class="serve-attempt-btn${current === 'quick' ? ' is-active' : ''}" onclick="setPendingRallyBand('quick')" aria-pressed="${current === 'quick'}" title="Quick point: 0-4 shots">Q</button>
+      <button class="serve-attempt-btn${current === 'long' ? ' is-active' : ''}" onclick="setPendingRallyBand('long')" aria-pressed="${current === 'long'}" title="Long point: 5+ shots">L</button>
     </div>
   </div>`;
 }
@@ -2887,6 +2954,7 @@ function renderStats() {
   const model = buildStatsModel(m);
   const html = [
     renderActionBoard(model),
+    renderDevelopmentSummary(model),
     renderStatsDataQualityNote(model),
     renderServePlan(model),
     renderReturnPlan(model),
@@ -3166,6 +3234,7 @@ function normalizeImportedPoint(pt) {
     side: outcome.side,
     big,
     leak: false,
+    rallyBand: normalizeRallyBand(pt.rallyBand),
     dpt,
     context: normalizePointContextValue(pt.context),
     recordedAt: normalizeTimestamp(pt.recordedAt),
@@ -3602,6 +3671,8 @@ function pressureTagHtml(pressure, short) {
 function pointTagsHtml(pt) {
   const tags = [];
   if (pointServeAttempt(pt) === 'second') tags.push('<span class="serve-tag">2nd</span>');
+  const rally = rallyBandDef(pointRallyBand(pt));
+  if (rally.id) tags.push(`<span class="serve-tag">${esc(rally.code)}</span>`);
   pressureLabels(pt && pt.context && pt.context.pressure, true).forEach(label => {
     tags.push(`<span class="pressure-tag">${esc(label)}</span>`);
   });
@@ -3616,6 +3687,8 @@ function pressureTextTags(pressure) {
 function pointTextTags(pt) {
   const tags = [];
   if (pointServeAttempt(pt) === 'second') tags.push('2nd');
+  const rally = rallyBandDef(pointRallyBand(pt));
+  if (rally.id) tags.push(rally.code);
   const pressure = pressureTextTags(pt && pt.context && pt.context.pressure);
   if (pressure) tags.push(pressure);
   return tags.join(' ');
@@ -3631,6 +3704,18 @@ function pointServer(pt) {
 
 function pointServeAttempt(pt) {
   return pt && pt.context ? normalizeServeAttempt(pt.context.serveAttempt) : 'unknown';
+}
+
+function rallyBandDef(id) {
+  return byId(RALLY_BANDS, normalizeRallyBand(id)) || { id: null, code: '', label: '', detail: '' };
+}
+
+function pointRallyBand(pt) {
+  return normalizeRallyBand(pt && pt.rallyBand);
+}
+
+function pointsWithRallyBand(points, band) {
+  return points.filter(pt => pointRallyBand(pt) === band);
 }
 
 function pointPressure(pt) {
@@ -3690,12 +3775,102 @@ function pctLabel(value) {
   return value === null ? '—' : `${value}%`;
 }
 
+function perTenValue(count, total) {
+  return total > 0 ? Math.round((count / total) * 100) / 10 : null;
+}
+
+function perTenLabel(value) {
+  return value === null ? '—' : `${value.toFixed(1)} / 10`;
+}
+
 function pointsWithServeAttempt(points, attempt) {
   return points.filter(pt => pointServeAttempt(pt) === attempt);
 }
 
 function isDoubleFaultPoint(pt) {
   return dptKey(pt) === 'BAD_TECHNICAL.DFL';
+}
+
+function wonPoints(points) {
+  return points.filter(pt => pt.side === 'player');
+}
+
+function lostPoints(points) {
+  return points.filter(pt => pt.side === 'opponent');
+}
+
+function pointsByDptPath(points, pathKey) {
+  return points.filter(pt => dptKey(pt) === pathKey);
+}
+
+function pointsByDptPrefix(points, prefix) {
+  const keyPrefix = `${prefix}.`;
+  return points.filter(pt => {
+    const key = dptKey(pt);
+    return key === prefix || key.startsWith(keyPrefix);
+  });
+}
+
+function pointsByBucket(points, bucket) {
+  return points.filter(pt => hasDpt(pt) && pt.dpt.analyticsBucket === bucket);
+}
+
+function isReturnTechnicalError(pt) {
+  return pt.side === 'opponent' && dptKey(pt).startsWith('BAD_TECHNICAL.RET.');
+}
+
+function isPassiveAttackableReturn(pt) {
+  return dptKey(pt) === 'BAD_TACTICAL.PAS';
+}
+
+function isServeFreePoint(pt) {
+  const key = dptKey(pt);
+  return pt.side === 'player'
+    && (key === 'GOOD.SRV.ACE' || key === 'GOOD.SRV.SRV+' || key === 'NEUTRAL.RET');
+}
+
+function isCreatedFreePoint(pt) {
+  const key = dptKey(pt);
+  return pt.side === 'player'
+    && (key === 'GOOD.SRV.ACE' || key === 'GOOD.SRV.SRV+' || key === 'GOOD.RET.WIN');
+}
+
+function isReceivedFreePoint(pt) {
+  const key = dptKey(pt);
+  return pt.side === 'player'
+    && (key === 'NEUTRAL.DFL' || key === 'NEUTRAL.RET' || key === 'NEUTRAL.RALLY.OMR');
+}
+
+function isDonatedPoint(pt) {
+  return pt.side === 'opponent' && dptKey(pt).startsWith('BAD_TECHNICAL.');
+}
+
+function isFhPositivePoint(pt) {
+  const key = dptKey(pt);
+  return pt.side === 'player' && (key === 'GOOD.FH.WIN' || key === 'GOOD.FH.PRC' || key === 'GOOD.FH.PAT');
+}
+
+function isBhPositivePoint(pt) {
+  const key = dptKey(pt);
+  return pt.side === 'player' && (key === 'GOOD.BH.WIN' || key === 'GOOD.BH.PRC' || key === 'GOOD.BH.PAT');
+}
+
+function isFhTechnicalError(pt) {
+  return pt.side === 'opponent' && dptKey(pt).startsWith('BAD_TECHNICAL.FH.');
+}
+
+function isBhTechnicalError(pt) {
+  return pt.side === 'opponent' && dptKey(pt).startsWith('BAD_TECHNICAL.BH.');
+}
+
+function isFhDamagingPoint(pt) {
+  const key = dptKey(pt);
+  return pt.side === 'opponent' && (key.startsWith('BAD_TECHNICAL.FH.') || key.startsWith('BAD_TACTICAL.FH.'));
+}
+
+function isBhDamagingPoint(pt) {
+  const key = dptKey(pt);
+  return pt.side === 'opponent' && (key.startsWith('BAD_TECHNICAL.BH.') || key.startsWith('BAD_TACTICAL.BH.'));
 }
 
 function buildStatsModel(m) {
@@ -3710,6 +3885,14 @@ function buildStatsModel(m) {
   const servePts = all.filter(pt => pointServer(pt) === 'player');
   const returnPts = all.filter(pt => pointServer(pt) === 'opponent');
   const unknownServerPts = all.filter(pt => !pointServer(pt));
+  const quickPts = pointsWithRallyBand(all, 'quick');
+  const longPts = pointsWithRallyBand(all, 'long');
+  const unknownRallyBandPts = all.filter(pt => !pointRallyBand(pt));
+  const knownRallyBandTotal = quickPts.length + longPts.length;
+  const quickServePts = quickPts.filter(pt => pointServer(pt) === 'player');
+  const longServePts = longPts.filter(pt => pointServer(pt) === 'player');
+  const quickReturnPts = quickPts.filter(pt => pointServer(pt) === 'opponent');
+  const longReturnPts = longPts.filter(pt => pointServer(pt) === 'opponent');
   const serveFirstPts = pointsWithServeAttempt(servePts, 'first');
   const serveSecondPts = pointsWithServeAttempt(servePts, 'second');
   const serveUnknownAttemptPts = pointsWithServeAttempt(servePts, 'unknown');
@@ -3719,6 +3902,8 @@ function buildStatsModel(m) {
   const knownServeAttemptTotal = serveFirstPts.length + serveSecondPts.length;
   const knownReturnAttemptTotal = returnFirstPts.length + returnSecondPts.length;
   const pressurePts = all.filter(pt => pointPressure(pt).length > 0);
+  const quickPressurePts = quickPts.filter(pt => pointPressure(pt).length > 0);
+  const longPressurePts = longPts.filter(pt => pointPressure(pt).length > 0);
   const breakServePts = pressurePts.filter(pt => pointServer(pt) === 'player' && hasPressure(pt, 'break_point'));
   const breakReturnPts = pressurePts.filter(pt => pointServer(pt) === 'opponent' && hasPressure(pt, 'break_point'));
   const breakServeFirstPts = pointsWithServeAttempt(breakServePts, 'first');
@@ -3734,6 +3919,33 @@ function buildStatsModel(m) {
   const gs = gameScore(m);
   const g = curGame(m);
   const doubleFaults = servePts.filter(isDoubleFaultPoint).length;
+  const estimatedServeAttempts = servePts.length + serveSecondPts.length;
+  const serveFreePts = servePts.filter(isServeFreePoint);
+  const serveDonationPts = servePts.filter(isDonatedPoint);
+  const returnErrorPts = returnPts.filter(isReturnTechnicalError);
+  const returnPressurePts = pointsByDptPath(returnPts, 'GOOD.RET.PRC');
+  const returnWinnerPts = pointsByDptPath(returnPts, 'GOOD.RET.WIN');
+  const passiveAttackableReturnPts = returnPts.filter(isPassiveAttackableReturn);
+  const longTechnicalLost = longPts.filter(pt => pt.side === 'opponent' && hasDpt(pt) && pt.dpt.analyticsBucket === 'technical');
+  const longTacticalLost = longPts.filter(pt => pt.side === 'opponent' && hasDpt(pt) && pt.dpt.analyticsBucket === 'tactical');
+  const longOpponentQualityLost = longPts.filter(pt => dptKey(pt) === 'NEUTRAL.RALLY.QAL');
+  const longFhDamagingPts = longPts.filter(isFhDamagingPoint);
+  const longBhDamagingPts = longPts.filter(isBhDamagingPoint);
+  const longPatienceWins = longPts.filter(pt => pt.side === 'player' && (dptKey(pt) === 'GOOD.FH.PAT' || dptKey(pt) === 'GOOD.BH.PAT'));
+  const fhCleanWinnerPts = pointsByDptPath(all, 'GOOD.FH.WIN').filter(pt => pt.side === 'player');
+  const bhCleanWinnerPts = pointsByDptPath(all, 'GOOD.BH.WIN').filter(pt => pt.side === 'player');
+  const fhTechnicalErrorPts = all.filter(isFhTechnicalError);
+  const bhTechnicalErrorPts = all.filter(isBhTechnicalError);
+  const fhPositivePts = all.filter(isFhPositivePoint);
+  const bhPositivePts = all.filter(isBhPositivePoint);
+  const fhDamagingPts = all.filter(isFhDamagingPoint);
+  const bhDamagingPts = all.filter(isBhDamagingPoint);
+  const createdFreePts = all.filter(isCreatedFreePoint);
+  const receivedFreePts = all.filter(isReceivedFreePoint);
+  const donatedPts = all.filter(isDonatedPoint);
+  const pressureDoubleFaultPts = pressurePts.filter(isDoubleFaultPoint);
+  const pressureTechnicalLost = pressurePts.filter(pt => pt.side === 'opponent' && hasDpt(pt) && pt.dpt.analyticsBucket === 'technical');
+  const pressureTacticalLost = pressurePts.filter(pt => pt.side === 'opponent' && hasDpt(pt) && pt.dpt.analyticsBucket === 'tactical');
 
   const model = {
     version: 2,
@@ -3770,6 +3982,13 @@ function buildStatsModel(m) {
       serve: servePts,
       returnGame: returnPts,
       unknownServer: unknownServerPts,
+      quick: quickPts,
+      long: longPts,
+      unknownRallyBand: unknownRallyBandPts,
+      quickServe: quickServePts,
+      longServe: longServePts,
+      quickReturn: quickReturnPts,
+      longReturn: longReturnPts,
       serveFirst: serveFirstPts,
       serveSecond: serveSecondPts,
       serveUnknownAttempt: serveUnknownAttemptPts,
@@ -3777,6 +3996,8 @@ function buildStatsModel(m) {
       returnSecond: returnSecondPts,
       returnUnknownAttempt: returnUnknownAttemptPts,
       pressure: pressurePts,
+      quickPressure: quickPressurePts,
+      longPressure: longPressurePts,
       breakServe: breakServePts,
       breakReturn: breakReturnPts,
       breakServeFirst: breakServeFirstPts,
@@ -3808,6 +4029,12 @@ function buildStatsModel(m) {
       firstServeIn: ratioRecord(serveFirstPts.length, knownServeAttemptTotal),
       doubleFaults,
       doubleFaultRate: ratioRecord(doubleFaults, servePts.length),
+      estimatedServeAttempts,
+      doubleFaultAttemptRate: ratioRecord(doubleFaults, estimatedServeAttempts),
+      freePoints: statsPointRecord(serveFreePts),
+      freePointRate: ratioRecord(serveFreePts.length, servePts.length),
+      donationPoints: statsPointRecord(serveDonationPts),
+      donationRate: ratioRecord(serveDonationPts.length, servePts.length),
       topLoss: topCodeFor(servePts.filter(pt => pt.side === 'opponent')),
       topFirstLoss: topCodeFor(serveFirstPts.filter(pt => pt.side === 'opponent')),
       topSecondLoss: topCodeFor(serveSecondPts.filter(pt => pt.side === 'opponent')),
@@ -3818,9 +4045,37 @@ function buildStatsModel(m) {
       second: statsPointRecord(returnSecondPts),
       unknownAttempt: statsPointRecord(returnUnknownAttemptPts),
       knownAttemptTotal: knownReturnAttemptTotal,
+      errors: statsPointRecord(returnErrorPts),
+      errorRate: ratioRecord(returnErrorPts.length, returnPts.length),
+      pressureReturns: statsPointRecord(returnPressurePts),
+      pressureRate: ratioRecord(returnPressurePts.length, returnPts.length),
+      winners: statsPointRecord(returnWinnerPts),
+      winnerRate: ratioRecord(returnWinnerPts.length, returnPts.length),
+      passiveAttackable: statsPointRecord(passiveAttackableReturnPts),
+      passiveAttackableRate: ratioRecord(passiveAttackableReturnPts.length, returnPts.length),
       topLoss: topCodeFor(returnPts.filter(pt => pt.side === 'opponent')),
       topFirstLoss: topCodeFor(returnFirstPts.filter(pt => pt.side === 'opponent')),
       topSecondLoss: topCodeFor(returnSecondPts.filter(pt => pt.side === 'opponent')),
+    },
+    rally: {
+      quick: statsPointRecord(quickPts),
+      long: statsPointRecord(longPts),
+      knownTotal: knownRallyBandTotal,
+      longShare: ratioRecord(longPts.length, knownRallyBandTotal),
+      unknownCount: unknownRallyBandPts.length,
+      quickServe: statsPointRecord(quickServePts),
+      longServe: statsPointRecord(longServePts),
+      quickReturn: statsPointRecord(quickReturnPts),
+      longReturn: statsPointRecord(longReturnPts),
+      quickPressure: statsPointRecord(quickPressurePts),
+      longPressure: statsPointRecord(longPressurePts),
+      longTechnicalErrors: longTechnicalLost.length,
+      longTacticalErrors: longTacticalLost.length,
+      longOpponentQualityLosses: longOpponentQualityLost.length,
+      longFhDamage: longFhDamagingPts.length,
+      longBhDamage: longBhDamagingPts.length,
+      longPatienceWins: longPatienceWins.length,
+      topLongLoss: topCodeFor(longPts.filter(pt => pt.side === 'opponent')),
     },
     pressure: {
       points: statsPointRecord(pressurePts),
@@ -3831,7 +4086,34 @@ function buildStatsModel(m) {
       breakReturnFirst: statsPointRecord(breakReturnFirstPts),
       breakReturnSecond: statsPointRecord(breakReturnSecondPts),
       gameSetMatch: statsPointRecord(playerGameSetMatchPts),
+      doubleFaults: pressureDoubleFaultPts.length,
+      doubleFaultRate: ratioRecord(pressureDoubleFaultPts.length, pressurePts.length),
+      technicalErrors: pressureTechnicalLost.length,
+      tacticalErrors: pressureTacticalLost.length,
       topDiagnostic: topCodeFor(pressurePts),
+    },
+    strokes: {
+      fhCleanWinners: fhCleanWinnerPts.length,
+      bhCleanWinners: bhCleanWinnerPts.length,
+      fhTechnicalErrors: fhTechnicalErrorPts.length,
+      bhTechnicalErrors: bhTechnicalErrorPts.length,
+      fhPositive: statsPointRecord(fhPositivePts),
+      bhPositive: statsPointRecord(bhPositivePts),
+      fhDamaging: statsPointRecord(fhDamagingPts),
+      bhDamaging: statsPointRecord(bhDamagingPts),
+      topFhTechnicalMiss: topCodeFor(fhTechnicalErrorPts),
+      topBhTechnicalMiss: topCodeFor(bhTechnicalErrorPts),
+      topFhTacticalLoss: topCodeFor(pointsByDptPrefix(all, 'BAD_TACTICAL.FH').filter(pt => pt.side === 'opponent')),
+      topBhTacticalLoss: topCodeFor(pointsByDptPrefix(all, 'BAD_TACTICAL.BH').filter(pt => pt.side === 'opponent')),
+    },
+    freeDonated: {
+      createdFree: createdFreePts.length,
+      receivedFree: receivedFreePts.length,
+      totalFree: createdFreePts.length + receivedFreePts.length,
+      donated: donatedPts.length,
+      differential: createdFreePts.length + receivedFreePts.length - donatedPts.length,
+      donationRate: ratioRecord(donatedPts.length, all.length),
+      donationsPerTen: perTenValue(donatedPts.length, all.length),
     },
     details: {
       codeBreakdown,
@@ -3839,8 +4121,10 @@ function buildStatsModel(m) {
     dataQuality: {
       unknownServerPts: unknownServerPts.length,
       unknownServeAttemptPts: serveUnknownAttemptPts.length + returnUnknownAttemptPts.length,
+      unknownRallyBandPts: unknownRallyBandPts.length,
       knownServeAttemptTotal,
       knownReturnAttemptTotal,
+      knownRallyBandTotal,
     },
   };
 
@@ -3973,7 +4257,7 @@ function renderActionBoard(model) {
   const cards = model.actionCards;
   const body = cards.length
     ? `<div class="stats-action-board">${cards.map(actionCardHtml).join('')}</div>`
-    : '<p class="stats-note">No clear action has separated yet. Keep recording points with server and serve-attempt context to build a stronger signal.</p>';
+    : '<p class="stats-note">No clear action has separated yet. Keep recording points with server, serve-attempt, and Q/L rally context to build a stronger signal.</p>';
 
   return `<div class="stats-card">
     <div class="stats-title">Do next</div>
@@ -4000,8 +4284,116 @@ function renderStatsDataQualityNote(model) {
   if (model.dataQuality.unknownServeAttemptPts > 0) {
     notes.push(`${model.dataQuality.unknownServeAttemptPts} serve/return point${plural(model.dataQuality.unknownServeAttemptPts)} missing 1st/2nd context`);
   }
+  if (model.dataQuality.unknownRallyBandPts > 0) {
+    notes.push(`${model.dataQuality.unknownRallyBandPts} point${plural(model.dataQuality.unknownRallyBandPts)} missing Q/L rally context`);
+  }
   if (!notes.length) return '';
-  return `<div class="stats-note warning">${esc(notes.join(' and '))}. Those points stay in match totals but are excluded from affected serve-attempt splits.</div>`;
+  return `<div class="stats-note warning">${esc(notes.join(' and '))}. Those points stay in match totals but are excluded from affected split stats.</div>`;
+}
+
+function renderDevelopmentSummary(model) {
+  return [
+    renderDevelopmentServeCard(model),
+    renderDevelopmentReturnCard(model),
+    renderDevelopmentRallyCard(model),
+    renderDevelopmentStrokeCard(model),
+    renderDevelopmentFreeDonatedCard(model),
+    renderDevelopmentPressureCard(model),
+  ].join('');
+}
+
+function renderDevelopmentServeCard(model) {
+  const s = model.serve;
+  const body = `<div class="metric-grid">
+    ${metricRatioTileHtml('1st serve in', s.firstServeIn, `${s.knownAttemptTotal} known service points`)}
+    ${metricRecordTileHtml('1st serve won', s.first)}
+    ${metricRecordTileHtml('2nd serve won', s.second)}
+    ${metricRatioTileHtml('DF / service pts', s.doubleFaultRate, `${s.doubleFaults} double fault${plural(s.doubleFaults)}`)}
+    ${metricRatioTileHtml('DF / attempts', s.doubleFaultAttemptRate, `${s.doubleFaults}/${s.estimatedServeAttempts} estimated attempts`)}
+    ${metricRatioTileHtml('Serve free pts', s.freePointRate, `${s.freePoints.total} point${plural(s.freePoints.total)}`)}
+    ${metricRatioTileHtml('Serve donations', s.donationRate, `${s.donationPoints.total} point${plural(s.donationPoints.total)}`)}
+  </div>
+  ${detailRowHtml('Top serve loss', codeHtml(s.topLoss))}
+  ${statsActionLineHtml(servePlanAction(model))}`;
+  return statsCardHtml('Development: serve reliability', 'Consistency, second-serve exposure, and easy points on serve.', body);
+}
+
+function renderDevelopmentReturnCard(model) {
+  const r = model.returnGame;
+  const body = `<div class="metric-grid">
+    ${metricRecordTileHtml('Return points', r.points)}
+    ${metricRecordTileHtml('Return vs 1st', r.first)}
+    ${metricRecordTileHtml('Return vs 2nd', r.second)}
+    ${metricRatioTileHtml('Return errors', r.errorRate, `${r.errors.total} technical return miss${plural(r.errors.total)}`)}
+    ${metricRatioTileHtml('Pressure returns', r.pressureRate, `${r.pressureReturns.total} PRC return${plural(r.pressureReturns.total)}`)}
+    ${metricRatioTileHtml('Passive attackable', r.passiveAttackableRate, `${r.passiveAttackable.total} point${plural(r.passiveAttackable.total)}`)}
+  </div>
+  ${detailRowHtml('Top return loss', codeHtml(r.topLoss))}
+  ${statsActionLineHtml(returnPlanAction(model))}`;
+  return statsCardHtml('Development: return start', 'Whether the player neutralizes serve and attacks second-serve chances.', body);
+}
+
+function renderDevelopmentRallyCard(model) {
+  const r = model.rally;
+  const body = `<div class="metric-grid">
+    ${metricRecordTileHtml('Grind record', r.long)}
+    ${metricRatioTileHtml('Grind share', r.longShare, `${r.knownTotal} known Q/L point${plural(r.knownTotal)}`)}
+    ${metricTextTileHtml('Top grind loss', codeHtml(r.topLongLoss), 'most common 5+ shot loss')}
+    ${metricRecordTileHtml('Grind on serve', r.longServe)}
+    ${metricRecordTileHtml('Grind on return', r.longReturn)}
+    ${metricCountTileHtml('Grind technical', r.longTechnicalErrors, '5+ shot execution losses')}
+    ${metricCountTileHtml('Grind tactical', r.longTacticalErrors, '5+ shot choice losses')}
+    ${metricCountTileHtml('Grind patience wins', r.longPatienceWins, 'L + PAT wins')}
+  </div>
+  ${detailRowHtml('Quick Q points', recordHtml(r.quick))}
+  ${detailRowHtml('Grind FH/BH damage', `FH ${r.longFhDamage} · BH ${r.longBhDamage}`)}
+  ${detailRowHtml('Grind opponent quality losses', String(r.longOpponentQualityLosses))}
+  ${statsActionLineHtml(r.long.total < 5 ? 'Keep marking L when rallies reach 5+ shots before changing the grind plan.' : longRallyAction(model))}`;
+  return statsCardHtml('Development: grind / long rallies', 'Grind uses L points: rallies that reached 5+ shots.', body);
+}
+
+function renderDevelopmentStrokeCard(model) {
+  const s = model.strokes;
+  const body = `<div class="metric-grid">
+    ${metricTextTileHtml('FH winner:error', ratioPairText(s.fhCleanWinners, s.fhTechnicalErrors), `${s.fhCleanWinners} clean winners · ${s.fhTechnicalErrors} technical errors`)}
+    ${metricTextTileHtml('BH winner:error', ratioPairText(s.bhCleanWinners, s.bhTechnicalErrors), `${s.bhCleanWinners} clean winners · ${s.bhTechnicalErrors} technical errors`)}
+    ${metricTextTileHtml('FH productive:damage', ratioPairText(s.fhPositive.total, s.fhDamaging.total), `${s.fhPositive.total} positive · ${s.fhDamaging.total} damaging`)}
+    ${metricTextTileHtml('BH productive:damage', ratioPairText(s.bhPositive.total, s.bhDamaging.total), `${s.bhPositive.total} positive · ${s.bhDamaging.total} damaging`)}
+  </div>
+  ${detailRowHtml('Top FH technical miss', codeHtml(s.topFhTechnicalMiss))}
+  ${detailRowHtml('Top BH technical miss', codeHtml(s.topBhTechnicalMiss))}
+  ${detailRowHtml('Top FH tactical loss', codeHtml(s.topFhTacticalLoss))}
+  ${detailRowHtml('Top BH tactical loss', codeHtml(s.topBhTacticalLoss))}`;
+  return statsCardHtml('Development: FH/BH productivity', 'Ratios separate clean production from execution and decision damage.', body);
+}
+
+function renderDevelopmentFreeDonatedCard(model) {
+  const f = model.freeDonated;
+  const diff = signedNumberText(f.differential);
+  const body = `<div class="metric-grid">
+    ${metricCountTileHtml('Created free pts', f.createdFree, 'aces, serve-plus wins, return winners')}
+    ${metricCountTileHtml('Received free pts', f.receivedFree, 'opponent double faults or routine misses')}
+    ${metricCountTileHtml('Donated pts', f.donated, 'technical losses by our player')}
+    ${metricTextTileHtml('Free differential', diff, 'created + received - donated')}
+    ${metricTextTileHtml('Donations / 10', perTenLabel(f.donationsPerTen), `${f.donated}/${model.summary.totalPoints.total} total points`)}
+  </div>
+  ${statsActionLineHtml(f.differential < 0 ? 'Stabilize first: reduce donated technical points before adding risk.' : 'Keep banking free points while protecting the low-error patterns.')}`;
+  return statsCardHtml('Development: free vs donated', 'Simple young-player KPI: what we got cheaply versus what we gave away.', body);
+}
+
+function renderDevelopmentPressureCard(model) {
+  const p = model.pressure;
+  const body = `<div class="metric-grid">
+    ${metricRecordTileHtml('Break pts saved', p.breakSaved)}
+    ${metricRecordTileHtml('Break pts won', p.breakConverted)}
+    ${metricRecordTileHtml('Game/set/match pts', p.gameSetMatch)}
+    ${metricRatioTileHtml('Pressure DFs', p.doubleFaultRate, `${p.doubleFaults} double fault${plural(p.doubleFaults)}`)}
+    ${metricCountTileHtml('Pressure technical', p.technicalErrors, 'execution losses')}
+    ${metricCountTileHtml('Pressure tactical', p.tacticalErrors, 'choice losses')}
+  </div>
+  ${detailRowHtml('Most common pressure diagnostic', codeHtml(p.topDiagnostic))}
+  ${statsActionLineHtml(pressurePlanAction(model))}`;
+  return statsCardHtml('Development: pressure', 'Serve, return, and diagnostic profile when the score matters.', body);
 }
 
 function renderServePlan(model) {
@@ -4097,6 +4489,7 @@ function renderStatsDetails(model) {
         <div class="stats-detail-heading">Data quality</div>
         ${detailRowHtml('Unknown server context', String(model.dataQuality.unknownServerPts))}
         ${detailRowHtml('Unknown serve attempt', String(model.dataQuality.unknownServeAttemptPts))}
+        ${detailRowHtml('Unknown Q/L rally band', String(model.dataQuality.unknownRallyBandPts))}
       </div>
       <div class="stats-detail-group">
         <div class="stats-detail-heading">Serve / return records</div>
@@ -4106,6 +4499,12 @@ function renderStatsDetails(model) {
         ${detailRowHtml('Player 2nd serve points', recordHtml(model.serve.second))}
         ${detailRowHtml('Return vs 1st serve', recordHtml(model.returnGame.first))}
         ${detailRowHtml('Return vs 2nd serve', recordHtml(model.returnGame.second))}
+      </div>
+      <div class="stats-detail-group">
+        <div class="stats-detail-heading">Q/L rally records</div>
+        ${detailRowHtml('Quick Q points', recordHtml(model.rally.quick))}
+        ${detailRowHtml('Long L points', recordHtml(model.rally.long))}
+        ${detailRowHtml('Long-point share', ratioText(model.rally.longShare))}
       </div>
       <div class="stats-detail-group">
         <div class="stats-detail-heading">Diagnostic code breakdown</div>
@@ -4191,6 +4590,15 @@ function ratioText(ratio) {
   return ratio.total > 0 ? `${ratio.part}/${ratio.total} (${pctLabel(ratio.pct)})` : '—';
 }
 
+function ratioPairText(numerator, denominator) {
+  return `${normalizePointCount(numerator)}:${normalizePointCount(denominator)}`;
+}
+
+function signedNumberText(value) {
+  const number = Number(value) || 0;
+  return number > 0 ? `+${number}` : String(number);
+}
+
 function attemptRecordHtml(label, record) {
   return `${esc(label)} ${recordHtml(record)}`;
 }
@@ -4240,6 +4648,19 @@ function pressurePlanAction(model) {
   if (card) return card.action;
   if (model.pressure.points.total < 4) return 'Pressure sample is thin; use the same pre-point routine and keep collecting points.';
   return 'Use one clear pattern on pressure points and avoid changing targets late.';
+}
+
+function longRallyAction(model) {
+  if (model.rally.long.winPct !== null && model.rally.long.winPct >= 55) {
+    return 'Keep the long-rally identity: shape, height, and patient targets are paying off.';
+  }
+  if (model.rally.longTechnicalErrors > model.rally.longTacticalErrors) {
+    return 'On 5+ shot points, train legs and net clearance before changing the tactical plan.';
+  }
+  if (model.rally.longTacticalErrors > 0) {
+    return 'On 5+ shot points, pre-pick safer targets and avoid changing direction late.';
+  }
+  return 'Use height and middle targets to make one more ball when points reach 5+ shots.';
 }
 
 function topDptPattern(points) {
@@ -4606,6 +5027,25 @@ function buildAiCoachPayload(m, mode = getAiMode(), coachContextText = aiContext
       gameSetMatchPoints: aiRecordFromStatsRecord(model.pressure.gameSetMatch),
       topPressureDiagnostic: model.pressure.topDiagnostic,
     },
+    rally: {
+      quickPoints: aiRecordWithPctFromStatsRecord(model.rally.quick),
+      longPoints: aiRecordWithPctFromStatsRecord(model.rally.long),
+      knownRallyBandTotal: model.rally.knownTotal,
+      longPointSharePct: model.rally.longShare.pct,
+      unknownRallyBandPts: model.rally.unknownCount,
+      quickServePoints: aiRecordWithPctFromStatsRecord(model.rally.quickServe),
+      longServePoints: aiRecordWithPctFromStatsRecord(model.rally.longServe),
+      quickReturnPoints: aiRecordWithPctFromStatsRecord(model.rally.quickReturn),
+      longReturnPoints: aiRecordWithPctFromStatsRecord(model.rally.longReturn),
+      longTechnicalErrors: model.rally.longTechnicalErrors,
+      longTacticalErrors: model.rally.longTacticalErrors,
+      longOpponentQualityLosses: model.rally.longOpponentQualityLosses,
+      longFhDamage: model.rally.longFhDamage,
+      longBhDamage: model.rally.longBhDamage,
+      longPatienceWins: model.rally.longPatienceWins,
+      topLongPointLoss: model.rally.topLongLoss,
+    },
+    developmentStats: buildAiDevelopmentStats(model),
     scoreSheet: {
       description: 'Anonymized chronological score sheet from the Sheet tab. Left column is Player; right column is Opponent.',
       text: buildScoreSheetText(m, { anonymize: true }),
@@ -4631,6 +5071,7 @@ function buildAiCoachPrompt(payload, mode = getAiMode()) {
     'Use only the data provided. Do not invent strokes, scores, tactics, injuries, emotions, or opponent tendencies not supported by the data.',
     'Prioritize repeated patterns and coachable actions over isolated single-point events.',
     'Use first/second serve splits when they make a clearer serve or return action, but do not overstate thin samples.',
+    'Use rally.Q/L context when available: Q means quick point in 0-4 shots; L means long/grind point in 5+ shots and is the grind/tolerance signal.',
     'Separate technical execution misses from tactical choice or recovery problems. Do not over-coach neutral/opponent-driven points.',
     'If the sample is thin, say so and keep the advice conservative.',
   ];
@@ -4775,6 +5216,60 @@ function aiRecordWithPctFromStatsRecord(record) {
   };
 }
 
+function buildAiDevelopmentStats(model) {
+  return {
+    serveReliability: {
+      firstServeInPct: model.serve.firstServeIn.pct,
+      firstServePoints: aiRecordWithPctFromStatsRecord(model.serve.first),
+      secondServePoints: aiRecordWithPctFromStatsRecord(model.serve.second),
+      doubleFaults: model.serve.doubleFaults,
+      doubleFaultPctOfServicePoints: model.serve.doubleFaultRate.pct,
+      doubleFaultPctOfEstimatedServeAttempts: model.serve.doubleFaultAttemptRate.pct,
+      serveFreePointPct: model.serve.freePointRate.pct,
+      serveDonationPct: model.serve.donationRate.pct,
+    },
+    returnStart: {
+      returnPoints: aiRecordWithPctFromStatsRecord(model.returnGame.points),
+      returnVsFirst: aiRecordWithPctFromStatsRecord(model.returnGame.first),
+      returnVsSecond: aiRecordWithPctFromStatsRecord(model.returnGame.second),
+      returnErrorPct: model.returnGame.errorRate.pct,
+      pressureReturnPct: model.returnGame.pressureRate.pct,
+      passiveAttackableReturnPct: model.returnGame.passiveAttackableRate.pct,
+    },
+    grind: {
+      quickReference: aiRecordWithPctFromStatsRecord(model.rally.quick),
+      long: aiRecordWithPctFromStatsRecord(model.rally.long),
+      longRallySharePct: model.rally.longShare.pct,
+      longTechnicalErrors: model.rally.longTechnicalErrors,
+      longTacticalErrors: model.rally.longTacticalErrors,
+      longFhDamage: model.rally.longFhDamage,
+      longBhDamage: model.rally.longBhDamage,
+      longPatienceWins: model.rally.longPatienceWins,
+      topLongLoss: model.rally.topLongLoss,
+    },
+    strokes: {
+      fhCleanWinners: model.strokes.fhCleanWinners,
+      fhTechnicalErrors: model.strokes.fhTechnicalErrors,
+      bhCleanWinners: model.strokes.bhCleanWinners,
+      bhTechnicalErrors: model.strokes.bhTechnicalErrors,
+      fhPositivePoints: model.strokes.fhPositive.total,
+      fhDamagingPoints: model.strokes.fhDamaging.total,
+      bhPositivePoints: model.strokes.bhPositive.total,
+      bhDamagingPoints: model.strokes.bhDamaging.total,
+      topFhTechnicalMiss: model.strokes.topFhTechnicalMiss,
+      topBhTechnicalMiss: model.strokes.topBhTechnicalMiss,
+    },
+    freeVsDonated: model.freeDonated,
+    pressureProfile: {
+      breakPointsSaved: aiRecordWithPctFromStatsRecord(model.pressure.breakSaved),
+      breakPointsConverted: aiRecordWithPctFromStatsRecord(model.pressure.breakConverted),
+      pressureDoubleFaultPct: model.pressure.doubleFaultRate.pct,
+      pressureTechnicalErrors: model.pressure.technicalErrors,
+      pressureTacticalErrors: model.pressure.tacticalErrors,
+    },
+  };
+}
+
 function aiPointForPayload(pt, index) {
   return {
     index: index + 1,
@@ -4782,6 +5277,7 @@ function aiPointForPayload(pt, index) {
     pointWinner: pt.side,
     big: !!(pt.big || String(pt.code || '').includes('*')),
     recordedAt: normalizeTimestamp(pt.recordedAt),
+    rallyBand: pointRallyBand(pt),
     dpt: hasDpt(pt) ? {
       state: pt.dpt.state,
       subject: pt.dpt.subject,
@@ -4823,6 +5319,7 @@ function buildAiSystemGuide() {
     scoreContext: {
       server: 'Stored per point from automatic server tracking.',
       serveAttempt: 'Stored per point as first, second, or unknown. Second includes points played behind a second serve and double faults.',
+      rallyBand: 'Q/quick means 0-4 shots. L/long means 5+ shots and is used as the grind/tolerance signal.',
       pressure: 'Automatically computed tags such as break_point, game_point, set_point, match_point, deuce, and advantage.',
       big: 'Manual star for emotionally or tactically important points beyond formal score pressure.',
     },

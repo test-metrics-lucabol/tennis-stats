@@ -39,6 +39,7 @@
 ## What it tracks
 
 - Score, games, sets, server, first/second serve.
+- Q/L rally band: **Q** for quick points (0-4 shots), **L** for long points (5+ shots).
 - Game, set, and match duration from the first recorded stat to each automatic finish.
 - Break points, game points, set points, match points, deuce, and advantage.
 - Manual big-point tags.
@@ -56,7 +57,7 @@
 | **Matches** | Create, reopen, delete, import, and export match files. |
 | **Record** | Log each point while the score updates itself. |
 | **Sheet** | Read the match as a tidy point-by-point story. |
-| **Stats** | Find technical/tactical leaks, pressure trends, serve/return splits, and diagnostic patterns. |
+| **Stats** | Find development summaries, grind/long-rally trends, pressure trends, serve/return splits, and diagnostic patterns. |
 | **AI Coach** | Turn anonymized stats into tactical cues and match reviews. |
 | **Guide** | Keep coding consistent across coaches. |
 
