@@ -57,7 +57,7 @@
 | **Matches** | Create, reopen, delete, import, and export match files. |
 | **Record** | Log each point while the score updates itself. |
 | **Sheet** | Read the match as a tidy point-by-point story. |
-| **Stats** | Find development summaries, grind/long-rally trends, pressure trends, serve/return splits, and diagnostic patterns. |
+| **Stats** | Use the action board, development summaries, biggest diagnostic pattern, and full audit details. |
 | **AI Coach** | Turn anonymized stats into tactical cues and match reviews. |
 | **Guide** | Keep coding consistent across coaches. |
 

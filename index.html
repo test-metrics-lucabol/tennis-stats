@@ -1166,7 +1166,7 @@
     <h3>Stats Rule</h3>
     <p style="font-size:0.82rem;line-height:1.6">
       The Stats screen keeps serve, return, Q/L rally, and pressure splits, then separates the main
-      <strong>technical</strong> and <strong>tactical</strong> diagnostic leaks into development patterns and actions.
+      <strong>technical</strong> and <strong>tactical</strong> diagnostic patterns into a simple action board and full audit details.
     </p>
   </div>
 
@@ -2956,11 +2956,7 @@ function renderStats() {
     renderActionBoard(model),
     renderDevelopmentSummary(model),
     renderStatsDataQualityNote(model),
-    renderServePlan(model),
-    renderReturnPlan(model),
-    renderPressurePlan(model),
-    renderDiagnosticPlan(model),
-    renderMatchContext(model),
+    renderDiagnosticPattern(model),
     renderStatsDetails(model),
   ].join('');
 
@@ -4396,95 +4392,42 @@ function renderDevelopmentPressureCard(model) {
   return statsCardHtml('Development: pressure', 'Serve, return, and diagnostic profile when the score matters.', body);
 }
 
-function renderServePlan(model) {
-  const s = model.serve;
-  const body = `<div class="metric-grid">
-    ${metricRecordTileHtml('Service points', s.points)}
-    ${metricRatioTileHtml('1st serve in', s.firstServeIn, `${s.knownAttemptTotal} known attempts`)}
-    ${metricRecordTileHtml('1st serve won', s.first)}
-    ${metricRecordTileHtml('2nd serve won', s.second)}
-    ${metricCountTileHtml('Double faults', s.doubleFaults, `${pctLabel(s.doubleFaultRate.pct)} of service points`)}
-  </div>
-  ${detailRowHtml('Top serve loss', codeHtml(s.topLoss))}
-  ${detailRowHtml('Lost after 1st serve', codeHtml(s.topFirstLoss))}
-  ${detailRowHtml('Lost after 2nd serve', codeHtml(s.topSecondLoss))}
-  ${statsActionLineHtml(servePlanAction(model))}`;
-
-  return statsCardHtml('Serve plan', 'How to hold more reliably. 1st-serve-in uses only points with known 1st/2nd context.', body);
-}
-
-function renderReturnPlan(model) {
-  const r = model.returnGame;
-  const body = `<div class="metric-grid">
-    ${metricRecordTileHtml('Return points', r.points)}
-    ${metricRecordTileHtml('Return vs 1st', r.first)}
-    ${metricRecordTileHtml('Return vs 2nd', r.second)}
-    ${metricRecordTileHtml('Break points won', model.pressure.breakConverted)}
-  </div>
-  ${detailRowHtml('Top return loss', codeHtml(r.topLoss))}
-  ${detailRowHtml('Lost return vs 1st', codeHtml(r.topFirstLoss))}
-  ${detailRowHtml('Lost return vs 2nd', codeHtml(r.topSecondLoss))}
-  ${statsActionLineHtml(returnPlanAction(model))}`;
-
-  return statsCardHtml('Return plan', 'Where the opponent serve can be pressured.', body);
-}
-
-function renderPressurePlan(model) {
-  const p = model.pressure;
-  const body = `<div class="metric-grid">
-    ${metricRecordTileHtml('Break points saved', p.breakSaved)}
-    ${metricRecordTileHtml('Break points won', p.breakConverted)}
-    ${metricRecordTileHtml('Game/set/match pts', p.gameSetMatch)}
-    ${metricRecordTileHtml('All pressure pts', p.points)}
-  </div>
-  ${detailRowHtml('Break points on serve', `${attemptRecordHtml('1st', p.breakServeFirst)} · ${attemptRecordHtml('2nd', p.breakServeSecond)}`)}
-  ${detailRowHtml('Break points on return', `${attemptRecordHtml('1st', p.breakReturnFirst)} · ${attemptRecordHtml('2nd', p.breakReturnSecond)}`)}
-  ${detailRowHtml('Most common pressure diagnostic', codeHtml(p.topDiagnostic))}
-  ${statsActionLineHtml(pressurePlanAction(model))}`;
-
-  return statsCardHtml('Pressure plan', 'Important points with break, game, set, match, deuce, or advantage context.', body);
-}
-
-function renderDiagnosticPlan(model) {
+function renderDiagnosticPattern(model) {
   const leak = model.summary.mainDiagnosticLeak;
-  const leakTile = leak
-    ? metricTextTileHtml('Main diagnostic leak', codeHtml(leak.code), `${leak.count}/${leak.total} ${leak.bucketLabel.toLowerCase()} losses (${leak.pct}%)`)
-    : metricTextTileHtml('Main diagnostic leak', '—', 'No repeated technical or tactical pattern yet');
+  const patternTile = leak
+    ? metricTextTileHtml('Biggest pattern', codeHtml(leak.code), `${leak.count}/${leak.total} ${leak.bucketLabel.toLowerCase()} losses (${leak.pct}%)`)
+    : metricTextTileHtml('Biggest pattern', '—', 'No repeated technical or tactical pattern yet');
   const body = `<div class="metric-grid">
-    ${leakTile}
-    ${metricCountTileHtml('Technical errors', model.summary.technicalErrors, 'execution losses')}
-    ${metricCountTileHtml('Tactical errors', model.summary.tacticalErrors, 'choice/target losses')}
+    ${patternTile}
+    ${metricCountTileHtml('Technical losses', model.summary.technicalErrors, 'execution losses')}
+    ${metricCountTileHtml('Tactical losses', model.summary.tacticalErrors, 'choice/target losses')}
     ${metricCountTileHtml('Positive wins', model.summary.positiveWins, 'GOOD -> WIN')}
     ${metricCountTileHtml('Opponent quality', model.summary.opponentQualityLosses, 'N-RALLY-QAL')}
   </div>
-  ${leak ? statsActionLineHtml(dptActionFor(leak.pathKey)) : '<p class="stats-note">No repeated diagnostic leak has separated yet.</p>'}`;
+  ${leak ? statsActionLineHtml(dptActionFor(leak.pathKey)) : '<p class="stats-note">No repeated diagnostic pattern has separated yet.</p>'}`;
 
-  return statsCardHtml('Diagnostic leak', 'Separates execution problems from tactical choices without over-coaching neutral points.', body);
-}
-
-function renderMatchContext(model) {
-  const m = model.match;
-  const winner = m.winnerName
-    ? `<div class="stats-action-line"><strong>Winner:</strong> ${esc(m.winnerName)}</div>`
-    : '';
-  const body = `<div class="metric-grid">
-    ${metricTextTileHtml('Format', esc(m.format), '')}
-    ${metricTextTileHtml('Time', esc(m.timing.match), `Set ${esc(m.timing.set)} · Game ${esc(m.timing.game)}`)}
-    ${metricTextTileHtml('Sets', scoreHtml(m.setScore), 'match score')}
-    ${metricTextTileHtml('Games', scoreHtml(m.gameScore), 'current set')}
-    ${metricRecordTileHtml('Total points', model.summary.totalPoints)}
-    ${metricRecordTileHtml('Big points', model.summary.bigPoints)}
-  </div>${winner}`;
-
-  return statsCardHtml(`Match context — ${m.player} vs ${m.opponent}`, 'Scoreboard context kept below the coaching levers.', body);
+  return statsCardHtml('Biggest diagnostic pattern', 'Supporting evidence for the action board; full records stay in Details.', body);
 }
 
 function renderStatsDetails(model) {
+  const m = model.match;
+  const winner = m.winnerName ? detailRowHtml('Winner', esc(m.winnerName)) : '';
   return `<div class="stats-card">
     <div class="stats-title">Details</div>
-    <div class="stats-subtitle">Raw records stay available for audit without crowding the action board.</div>
+    <div class="stats-subtitle">Collapsed match context, plan evidence, and raw records for audit.</div>
     <details class="stats-details">
       <summary>Show full breakdown</summary>
+      <div class="stats-detail-group">
+        <div class="stats-detail-heading">Match context</div>
+        ${detailRowHtml('Players', `${esc(m.player)} vs ${esc(m.opponent)}`)}
+        ${detailRowHtml('Format', esc(m.format))}
+        ${detailRowHtml('Time', `${esc(m.timing.match)} · Set ${esc(m.timing.set)} · Game ${esc(m.timing.game)}`)}
+        ${detailRowHtml('Sets', scoreHtml(m.setScore))}
+        ${detailRowHtml('Games', scoreHtml(m.gameScore))}
+        ${detailRowHtml('Total points', recordHtml(model.summary.totalPoints))}
+        ${detailRowHtml('Big points', recordHtml(model.summary.bigPoints))}
+        ${winner}
+      </div>
       <div class="stats-detail-group">
         <div class="stats-detail-heading">Data quality</div>
         ${detailRowHtml('Unknown server context', String(model.dataQuality.unknownServerPts))}
@@ -4492,13 +4435,38 @@ function renderStatsDetails(model) {
         ${detailRowHtml('Unknown Q/L rally band', String(model.dataQuality.unknownRallyBandPts))}
       </div>
       <div class="stats-detail-group">
-        <div class="stats-detail-heading">Serve / return records</div>
+        <div class="stats-detail-heading">Serve evidence</div>
         ${detailRowHtml('Player service points', recordHtml(model.serve.points))}
-        ${detailRowHtml('Player return points', recordHtml(model.returnGame.points))}
+        ${detailRowHtml('1st serve in', ratioText(model.serve.firstServeIn))}
         ${detailRowHtml('Player 1st serve points', recordHtml(model.serve.first))}
         ${detailRowHtml('Player 2nd serve points', recordHtml(model.serve.second))}
+        ${detailRowHtml('Double faults', `${model.serve.doubleFaults} (${pctLabel(model.serve.doubleFaultRate.pct)} of service points)`)}
+        ${detailRowHtml('Top serve loss', codeHtml(model.serve.topLoss))}
+        ${detailRowHtml('Lost after 1st serve', codeHtml(model.serve.topFirstLoss))}
+        ${detailRowHtml('Lost after 2nd serve', codeHtml(model.serve.topSecondLoss))}
+        ${detailRowHtml('Serve action', esc(servePlanAction(model)))}
+      </div>
+      <div class="stats-detail-group">
+        <div class="stats-detail-heading">Return evidence</div>
+        ${detailRowHtml('Player return points', recordHtml(model.returnGame.points))}
         ${detailRowHtml('Return vs 1st serve', recordHtml(model.returnGame.first))}
         ${detailRowHtml('Return vs 2nd serve', recordHtml(model.returnGame.second))}
+        ${detailRowHtml('Break points won', recordHtml(model.pressure.breakConverted))}
+        ${detailRowHtml('Top return loss', codeHtml(model.returnGame.topLoss))}
+        ${detailRowHtml('Lost return vs 1st', codeHtml(model.returnGame.topFirstLoss))}
+        ${detailRowHtml('Lost return vs 2nd', codeHtml(model.returnGame.topSecondLoss))}
+        ${detailRowHtml('Return action', esc(returnPlanAction(model)))}
+      </div>
+      <div class="stats-detail-group">
+        <div class="stats-detail-heading">Pressure evidence</div>
+        ${detailRowHtml('All pressure points', recordHtml(model.pressure.points))}
+        ${detailRowHtml('Break points saved', recordHtml(model.pressure.breakSaved))}
+        ${detailRowHtml('Break points won', recordHtml(model.pressure.breakConverted))}
+        ${detailRowHtml('Game/set/match points', recordHtml(model.pressure.gameSetMatch))}
+        ${detailRowHtml('Break points on serve', `${attemptRecordHtml('1st', model.pressure.breakServeFirst)} · ${attemptRecordHtml('2nd', model.pressure.breakServeSecond)}`)}
+        ${detailRowHtml('Break points on return', `${attemptRecordHtml('1st', model.pressure.breakReturnFirst)} · ${attemptRecordHtml('2nd', model.pressure.breakReturnSecond)}`)}
+        ${detailRowHtml('Most common pressure diagnostic', codeHtml(model.pressure.topDiagnostic))}
+        ${detailRowHtml('Pressure action', esc(pressurePlanAction(model)))}
       </div>
       <div class="stats-detail-group">
         <div class="stats-detail-heading">Q/L rally records</div>
