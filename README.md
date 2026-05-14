@@ -13,7 +13,7 @@
 - Built for coaches who want useful patterns, not a spreadsheet marathon.
 - Tap through points live from a phone or tablet.
 - Let **AI Coach** turn match stats into crisp cues and review notes.
-- Spot the momentum swing: serve, return, shot choice, pressure, or opponent quality.
+- Spot the diagnostic reason: serve, return, technical execution, tactical choice, pressure, or opponent quality.
 - Leave with one clear coaching action.
 
 > One pattern. One action.
@@ -42,10 +42,11 @@
 - Game, set, and match duration from the first recorded stat to each automatic finish.
 - Break points, game points, set points, match points, deuce, and advantage.
 - Manual big-point tags.
-- MPTS 2.0 point pivots:
-  - **Momentum**: took control, gave up control, opponent quality, or routine.
-  - **Shot / phase**: serve, return, forehand, backhand, transition, or net.
-  - **Detail**: direction, depth, decision, double fault, ace, forced error, and more.
+- Diagnostic Performance Tree point tags:
+  - **Neutral**: opponent-driven outcome or routine opponent miss.
+  - **Good**: player winner, pressure, patience, serve-plus, return pressure, or defense.
+  - **Technical**: correct idea, failed execution.
+  - **Tactical**: wrong shot choice, target, timing, or recovery.
   - **Outcome**: player won or lost the point.
 
 ## Tabs at a glance
@@ -55,7 +56,7 @@
 | **Matches** | Create, reopen, delete, import, and export match files. |
 | **Record** | Log each point while the score updates itself. |
 | **Sheet** | Read the match as a tidy point-by-point story. |
-| **Stats** | Find leaks, pressure trends, serve/return splits, and pivot patterns. |
+| **Stats** | Find technical/tactical leaks, pressure trends, serve/return splits, and diagnostic patterns. |
 | **AI Coach** | Turn anonymized stats into tactical cues and match reviews. |
 | **Guide** | Keep coding consistent across coaches. |
 
