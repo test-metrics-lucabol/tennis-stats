@@ -394,7 +394,7 @@
 
     .record-row {
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 5px;
       margin-top: 2px;
     }
@@ -478,6 +478,14 @@
 
     .sheet-point.big-pt   { background: #fffbcc; }
     .sheet-point.leak-pt  { background: #f0f8ff; }
+    .sheet-point.score-adjustment {
+      background: #f6f8fb;
+      color: var(--gray);
+      font-family: inherit;
+      font-size: 0.74rem;
+      font-weight: 700;
+    }
+    .score-adjustment-label { grid-column: 1 / -1; text-align: center; }
     .sheet-empty {
       padding: 10px 12px;
       font-size: 0.8rem;
@@ -960,6 +968,21 @@
     .form-input:focus { border-color: var(--blue); }
     .form-textarea { min-height: 96px; resize: vertical; line-height: 1.35; font-family: inherit; }
 
+    .score-set-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .score-preview {
+      background: var(--gray-light);
+      border-radius: 7px;
+      padding: 9px 10px;
+      color: var(--gray);
+      font-size: 0.8rem;
+      line-height: 1.45;
+    }
+
     .form-help {
       margin-top: 4px;
       color: var(--gray);
@@ -1049,6 +1072,7 @@
           <button class="btn-code" id="btnBig" onclick="togBig()" aria-label="Big point">*</button>
           <button class="btn btn-secondary" onclick="undoLast()">Undo</button>
           <button class="btn btn-secondary" onclick="swapCurrentServer()" aria-label="Swap Server">Srv</button>
+          <button class="btn btn-secondary" onclick="openSetScoreModal()">Score</button>
           <button class="btn btn-secondary" id="btnDptBack" onclick="dptBack()">Back</button>
           <button class="btn btn-secondary" onclick="cancelPoint()">Cancel</button>
         </div>
@@ -1158,6 +1182,7 @@
       <tr><td>Server</td><td>Choose the first server once. The app alternates by game; use Srv only to correct the current game.</td></tr>
       <tr><td>Serve used</td><td>Use the 1st/2nd toggle before recording a point. It resets to 1st after each point; second serves are shown as 2nd on the sheet.</td></tr>
       <tr><td>Rally</td><td>Use Q for quick points decided in 0-4 shots. Tap L when the rally reaches 5+ shots; Q/L appears on the sheet and powers grind stats.</td></tr>
+      <tr><td>Score</td><td>Use Score when charting resumes after missed play. Set sets, games, current-game points, and next server; the app adds score-only rows that do not count in development stats.</td></tr>
       <tr><td>Tree filter</td><td>The tree uses server context to hide impossible serve and return choices.</td></tr>
       <tr><td>Pressure</td><td>Break, game, set, match, deuce, and advantage tags are computed automatically from the score.</td></tr>
       <tr><td>Time of play</td><td>Game, set, and match timers start with the first recorded stat and close automatically when each segment finishes.</td></tr>
@@ -1170,6 +1195,7 @@
     <p style="font-size:0.82rem;line-height:1.6">
       The Stats screen keeps serve, return, Q/L rally, and pressure splits, then separates the main
       <strong>technical</strong> and <strong>tactical</strong> diagnostic patterns into a simple action board and full audit details.
+      Score-only rows keep match score and pressure context correct, but they are excluded from player-development stats.
     </p>
   </div>
 
@@ -1257,6 +1283,87 @@
 </div>
 
 <!-- ============================================================
+     MODAL: SET SCORE
+============================================================ -->
+<div class="modal-overlay" id="modalSetScore">
+  <div class="modal">
+    <h2>Set Match Score</h2>
+    <p style="font-size:0.84rem;color:var(--gray);margin-bottom:14px">
+      Use this when charting resumes after missed points, games, or sets. The app adds score-only records that are excluded from development stats.
+    </p>
+    <div class="score-set-grid">
+      <div class="form-group">
+        <label class="form-label" for="setScorePlayerSets">Player Sets</label>
+        <input class="form-input" id="setScorePlayerSets" type="number" min="0" step="1" oninput="updateSetScorePreview()">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="setScoreOpponentSets">Opponent Sets</label>
+        <input class="form-input" id="setScoreOpponentSets" type="number" min="0" step="1" oninput="updateSetScorePreview()">
+      </div>
+    </div>
+    <div class="score-set-grid">
+      <div class="form-group">
+        <label class="form-label" for="setScorePlayerGames">Player Games</label>
+        <input class="form-input" id="setScorePlayerGames" type="number" min="0" max="6" step="1" oninput="updateSetScorePreview()">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="setScoreOpponentGames">Opponent Games</label>
+        <input class="form-input" id="setScoreOpponentGames" type="number" min="0" max="6" step="1" oninput="updateSetScorePreview()">
+      </div>
+    </div>
+    <div id="setScoreRegularPoints" class="score-set-grid">
+      <div class="form-group">
+        <label class="form-label" for="setScorePlayerPoint">Player Points</label>
+        <select class="form-input" id="setScorePlayerPoint" onchange="updateSetScorePreview()">
+          <option value="0">0</option>
+          <option value="1">15</option>
+          <option value="2">30</option>
+          <option value="3">40</option>
+          <option value="4">Ad</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="setScoreOpponentPoint">Opponent Points</label>
+        <select class="form-input" id="setScoreOpponentPoint" onchange="updateSetScorePreview()">
+          <option value="0">0</option>
+          <option value="1">15</option>
+          <option value="2">30</option>
+          <option value="3">40</option>
+          <option value="4">Ad</option>
+        </select>
+      </div>
+    </div>
+    <div id="setScoreTiebreakPoints" class="score-set-grid" style="display:none">
+      <div class="form-group">
+        <label class="form-label" for="setScorePlayerTbPoint">Player TB Points</label>
+        <input class="form-input" id="setScorePlayerTbPoint" type="number" min="0" step="1" oninput="updateSetScorePreview()">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="setScoreOpponentTbPoint">Opponent TB Points</label>
+        <input class="form-input" id="setScoreOpponentTbPoint" type="number" min="0" step="1" oninput="updateSetScorePreview()">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="setScoreServer">Server for Next Point</label>
+      <select class="form-input" id="setScoreServer" onchange="updateSetScorePreview()">
+        <option value="player">Player</option>
+        <option value="opponent">Opponent</option>
+      </select>
+      <div class="form-help">For tie-breaks, this is the server for the next point, not necessarily the first tie-break server.</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="setScoreNote">Note</label>
+      <textarea class="form-input form-textarea" id="setScoreNote" rows="3" placeholder="e.g. scorer away for two games" oninput="updateSetScorePreview()"></textarea>
+    </div>
+    <div class="score-preview" id="setScorePreview">Choose the target score.</div>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="applySetScoreFromModal()">Set Score</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
      MODAL: DELETE CONFIRM
 ============================================================ -->
 <div class="modal-overlay" id="modalDelete">
@@ -1318,7 +1425,7 @@ const PRESSURE_SHORT_LABELS = {
 };
 
 const OLD_MPTS_STORAGE_KEY = 'tennis_pivot_tracker_matches_v2';
-const DPT_SCHEMA_VERSION = 'Diagnostic_Performance_Tree_v1.4';
+const DPT_SCHEMA_VERSION = 'Diagnostic_Performance_Tree_v1.5';
 const STORAGE_KEY = 'tennis_pivot_tracker_dpt_matches_v1';
 const STORAGE_ID  = 'tennis_pivot_tracker_dpt_currentId';
 const AI_KEY_STORAGE = 'tennis_pivot_tracker_gemini_api_key';
@@ -1330,7 +1437,7 @@ const VALID_TABS = ['record', 'sheet', 'stats', 'ai', 'guide', 'matches'];
 
 // Tennis point labels
 const PTS = ['0', '15', '30', '40'];
-const EXPORT_VERSION = 5;
+const EXPORT_VERSION = 6;
 
 const DPT_OUTCOMES = [
   { id: 'WIN', code: 'W', label: 'WIN', side: 'player', cls: 'dpt-win' },
@@ -1548,6 +1655,7 @@ let pending = {
 let deleteTargetId = null;
 let importIdCounter = 0;
 let legacyDataNotice = false;
+let scoreAdjustmentUndoStack = [];
 let aiCoach = {
   matchId: null,
   pointCount: 0,
@@ -1646,6 +1754,11 @@ function normalizeAiContext(value) {
   return String(value || '').replace(/\r\n?/g, '\n');
 }
 
+function normalizeAdjustmentText(value) {
+  const text = String(value || '').replace(/\r\n?/g, '\n').trim();
+  return text || null;
+}
+
 function aiContextForPrompt(value) {
   return normalizeAiContext(value).trim();
 }
@@ -1667,6 +1780,18 @@ function allMatchPoints(m) {
     m.sets.forEach(s => s.games.forEach(g => all.push(...g.points)));
   }
   return all;
+}
+
+function isScoreOnlyPoint(pt) {
+  return !!(pt && pt.scoreOnly);
+}
+
+function chartedMatchPoints(m) {
+  return allMatchPoints(m).filter(pt => !isScoreOnlyPoint(pt));
+}
+
+function scoreOnlyMatchPoints(m) {
+  return allMatchPoints(m).filter(isScoreOnlyPoint);
 }
 
 /** Count sets won for each side */
@@ -2175,6 +2300,31 @@ function normalizeStoredPoint(pt) {
     pt.big = String(pt.code || '').includes('*');
     changed = true;
   }
+  const scoreOnly = !!pt.scoreOnly;
+  if (pt.scoreOnly !== scoreOnly) {
+    pt.scoreOnly = scoreOnly;
+    changed = true;
+  }
+  const observed = scoreOnly ? false : pt.observed === false ? false : true;
+  if (pt.observed !== observed) {
+    pt.observed = observed;
+    changed = true;
+  }
+  const adjustmentId = normalizeAdjustmentText(pt.adjustmentId);
+  if (pt.adjustmentId !== adjustmentId) {
+    pt.adjustmentId = adjustmentId;
+    changed = true;
+  }
+  const adjustmentLabel = normalizeAdjustmentText(pt.adjustmentLabel);
+  if (pt.adjustmentLabel !== adjustmentLabel) {
+    pt.adjustmentLabel = adjustmentLabel;
+    changed = true;
+  }
+  const adjustmentNote = normalizeAdjustmentText(pt.adjustmentNote);
+  if (pt.adjustmentNote !== adjustmentNote) {
+    pt.adjustmentNote = adjustmentNote;
+    changed = true;
+  }
   const normalizedRallyBand = normalizeRallyBand(pt.rallyBand);
   if (pt.rallyBand !== normalizedRallyBand) {
     pt.rallyBand = normalizedRallyBand;
@@ -2608,12 +2758,378 @@ function recordPoint() {
 }
 
 // ============================================================
+// SCORE ADJUSTMENT
+// ============================================================
+
+function openSetScoreModal() {
+  const m = cur();
+  if (!m || m.status === 'completed') return;
+  const ss = setScore(m);
+  const gs = gameScore(m);
+  const g = curGame(m);
+  const needed = setsNeeded(m);
+  qs('#setScorePlayerSets').max = needed - 1;
+  qs('#setScoreOpponentSets').max = needed - 1;
+  qs('#setScorePlayerSets').value = ss.p;
+  qs('#setScoreOpponentSets').value = ss.o;
+  qs('#setScorePlayerGames').max = 30;
+  qs('#setScoreOpponentGames').max = 30;
+  qs('#setScorePlayerGames').value = gs.p;
+  qs('#setScoreOpponentGames').value = gs.o;
+  setRegularPointInputsFromCounts(g.pp, g.op, m);
+  qs('#setScorePlayerTbPoint').value = normalizePointCount(g.pp);
+  qs('#setScoreOpponentTbPoint').value = normalizePointCount(g.op);
+  const ctx = currentPointContext(m);
+  qs('#setScoreServer').value = isSide(ctx.server) ? ctx.server : 'player';
+  qs('#setScoreNote').value = '';
+  updateSetScorePreview();
+  openModal('modalSetScore');
+}
+
+function setRegularPointInputsFromCounts(playerPoints, opponentPoints, m) {
+  const p = normalizePointCount(playerPoints);
+  const o = normalizePointCount(opponentPoints);
+  let playerValue = Math.min(p, 3);
+  let opponentValue = Math.min(o, 3);
+  if (matchFormat(m).gameScoring !== 'noAd' && p >= 3 && o >= 3) {
+    if (p > o) {
+      playerValue = 4;
+      opponentValue = 3;
+    } else if (o > p) {
+      playerValue = 3;
+      opponentValue = 4;
+    } else {
+      playerValue = 3;
+      opponentValue = 3;
+    }
+  }
+  qs('#setScorePlayerPoint').value = String(playerValue);
+  qs('#setScoreOpponentPoint').value = String(opponentValue);
+}
+
+function updateSetScorePreview() {
+  const preview = qs('#setScorePreview');
+  if (!preview) return;
+  try {
+    const target = readSetScoreTarget();
+    const tiebreak = target.tiebreak;
+    qs('#setScoreRegularPoints').style.display = tiebreak ? 'none' : 'grid';
+    qs('#setScoreTiebreakPoints').style.display = tiebreak ? 'grid' : 'none';
+    validateSetScoreTarget(cur(), target);
+    preview.textContent = setScorePreviewText(target);
+  } catch (err) {
+    const target = readSetScoreTarget({ allowInvalidPoints: true });
+    if (target) {
+      qs('#setScoreRegularPoints').style.display = target.tiebreak ? 'none' : 'grid';
+      qs('#setScoreTiebreakPoints').style.display = target.tiebreak ? 'grid' : 'none';
+    }
+    preview.textContent = err && err.message ? err.message : 'Choose a valid target score.';
+  }
+}
+
+function readSetScoreTarget(options = {}) {
+  const m = cur();
+  if (!m) throw new Error('No active match.');
+  const playerSets = scoreInputCount('setScorePlayerSets');
+  const opponentSets = scoreInputCount('setScoreOpponentSets');
+  const playerGames = scoreInputCount('setScorePlayerGames');
+  const opponentGames = scoreInputCount('setScoreOpponentGames');
+  const tiebreak = scoreTargetIsTiebreak(m, playerSets, opponentSets, playerGames, opponentGames);
+  const points = tiebreak
+    ? {
+      player: scoreInputCount('setScorePlayerTbPoint'),
+      opponent: scoreInputCount('setScoreOpponentTbPoint'),
+    }
+    : readRegularPointTarget(m, options);
+  return {
+    sets: { player: playerSets, opponent: opponentSets },
+    games: { player: playerGames, opponent: opponentGames },
+    points,
+    tiebreak,
+    tiebreakTarget: tiebreak ? tiebreakTargetForScoreState(m, playerSets, opponentSets) : null,
+    server: qs('#setScoreServer').value === 'opponent' ? 'opponent' : 'player',
+    note: normalizeAdjustmentText(qs('#setScoreNote').value),
+  };
+}
+
+function scoreInputCount(id) {
+  return normalizePointCount(qs(`#${id}`).value);
+}
+
+function readRegularPointTarget(m, options = {}) {
+  const pRaw = scoreInputCount('setScorePlayerPoint');
+  const oRaw = scoreInputCount('setScoreOpponentPoint');
+  const noAd = matchFormat(m).gameScoring === 'noAd';
+  if (noAd && (pRaw > 3 || oRaw > 3) && !options.allowInvalidPoints) {
+    throw new Error('No-ad games do not use advantage. Choose 0, 15, 30, or 40.');
+  }
+  if (pRaw === 4 && oRaw === 4 && !options.allowInvalidPoints) {
+    throw new Error('Only one player can have advantage.');
+  }
+  if (pRaw === 4) return { player: 4, opponent: 3 };
+  if (oRaw === 4) return { player: 3, opponent: 4 };
+  return { player: Math.min(pRaw, 3), opponent: Math.min(oRaw, 3) };
+}
+
+function scoreTargetIsTiebreak(m, playerSets, opponentSets, playerGames, opponentGames) {
+  return playerGames === 6
+    && opponentGames === 6
+    && tiebreakTargetForScoreState(m, playerSets, opponentSets) !== null;
+}
+
+function tiebreakTargetForScoreState(m, playerSets, opponentSets) {
+  const fmt = matchFormat(m);
+  const needed = setsNeeded(m);
+  const deciding = playerSets === needed - 1 && opponentSets === needed - 1;
+  if (deciding) return fmt.finalSet.mode === 'tiebreak' ? fmt.finalSet.tiebreakTarget : null;
+  return 7;
+}
+
+function validateSetScoreTarget(m, target) {
+  if (!m || m.status === 'completed') throw new Error('Score can only be set during an active match.');
+  const needed = setsNeeded(m);
+  if (target.sets.player >= needed || target.sets.opponent >= needed) {
+    throw new Error('This score would complete the match. Finish the match manually instead.');
+  }
+  const currentSets = setScore(m);
+  if (target.sets.player < currentSets.p || target.sets.opponent < currentSets.o) {
+    throw new Error('Set score can only move forward.');
+  }
+  const extendedGames = targetSetAllowsExtendedGames(m, target);
+  if ((target.games.player > 6 || target.games.opponent > 6) && !extendedGames) {
+    throw new Error('Current-set games above 6 are only valid in a normal deciding set.');
+  }
+  if (target.games.player > 30 || target.games.opponent > 30) {
+    throw new Error('Current-set games must be 30 or lower.');
+  }
+  if (!target.tiebreak && target.games.player === 6 && target.games.opponent === 6) {
+    throw new Error('This format does not start a tie-break at 6-6 in the current set.');
+  }
+  if (setWouldBeCompleteFromGames(target.games.player, target.games.opponent)) {
+    throw new Error('Current-set games must be an in-progress set score.');
+  }
+  const sameSet = target.sets.player === currentSets.p && target.sets.opponent === currentSets.o;
+  if (sameSet) {
+    const currentGames = gameScore(m);
+    if (target.games.player < currentGames.p || target.games.opponent < currentGames.o) {
+      throw new Error('Current-set games can only move forward.');
+    }
+    const sameGame = target.games.player === currentGames.p && target.games.opponent === currentGames.o;
+    if (sameGame) {
+      const g = curGame(m);
+      if (target.points.player < normalizePointCount(g.pp) || target.points.opponent < normalizePointCount(g.op)) {
+        throw new Error('Current-game points can only move forward.');
+      }
+    }
+  }
+  const gameKind = target.tiebreak ? 'tiebreak' : 'standard';
+  const tiebreakTarget = target.tiebreak ? target.tiebreakTarget : null;
+  if (detectGameWinnerFromCounts(target.points.player, target.points.opponent, matchFormat(m), gameKind, tiebreakTarget)) {
+    throw new Error('Current-game points must be an in-progress game score.');
+  }
+}
+
+function setWouldBeCompleteFromGames(playerGames, opponentGames) {
+  if (playerGames >= 6 && playerGames - opponentGames >= 2) return true;
+  if (opponentGames >= 6 && opponentGames - playerGames >= 2) return true;
+  return false;
+}
+
+function targetSetAllowsExtendedGames(m, target) {
+  const fmt = matchFormat(m);
+  const needed = setsNeeded(m);
+  return fmt.finalSet.mode === 'normal'
+    && target.sets.player === needed - 1
+    && target.sets.opponent === needed - 1;
+}
+
+function setScorePreviewText(target) {
+  const m = cur();
+  const current = `${setScore(m).p}-${setScore(m).o} sets, ${gameScore(m).p}-${gameScore(m).o}, ${fmtPts(curGame(m), m)}`;
+  const pointLabel = target.tiebreak
+    ? `TB${target.tiebreakTarget} ${target.points.player}-${target.points.opponent}`
+    : fmtPts({ pp: target.points.player, op: target.points.opponent, kind: 'standard' }, m);
+  const targetText = `${target.sets.player}-${target.sets.opponent} sets, ${target.games.player}-${target.games.opponent}, ${pointLabel}`;
+  const currentPoints = curGame(m);
+  const sameSets = target.sets.player === setScore(m).p && target.sets.opponent === setScore(m).o;
+  const sameGames = sameSets && target.games.player === gameScore(m).p && target.games.opponent === gameScore(m).o;
+  const addedPoints = sameGames
+    ? (target.points.player - normalizePointCount(currentPoints.pp)) + (target.points.opponent - normalizePointCount(currentPoints.op))
+    : 'score-only';
+  return `Current: ${current}. Target: ${targetText}. Adds ${addedPoints} score-only point${addedPoints === 1 ? '' : 's'} and any needed score-only games/sets.`;
+}
+
+function applySetScoreFromModal() {
+  const m = cur();
+  try {
+    const target = readSetScoreTarget();
+    validateSetScoreTarget(m, target);
+    const result = applySetScoreTarget(m, target);
+    closeModal();
+    save();
+    renderAll();
+    toast(result.message, 'success');
+  } catch (err) {
+    toast(err && err.message ? err.message : 'Could not set score', 'error');
+    updateSetScorePreview();
+  }
+}
+
+function applySetScoreTarget(m, target) {
+  const snapshot = JSON.stringify(m);
+  const adjustment = createScoreAdjustment(target);
+  const undoEntry = { matchId: m.id, adjustmentId: adjustment.id, snapshot, pointCount: null };
+  scoreAdjustmentUndoStack.push(undoEntry);
+  try {
+    while (setScore(m).p < target.sets.player) completeSetByScoreOnly(m, 'player', adjustment);
+    while (setScore(m).o < target.sets.opponent) completeSetByScoreOnly(m, 'opponent', adjustment);
+    addScoreOnlyGamesToTarget(m, target, adjustment);
+    prepareActiveGameForTarget(m, target);
+    addScoreOnlyPointsToTarget(m, target, adjustment);
+    normalizeMatchRecord(m);
+    undoEntry.pointCount = allMatchPoints(m).length;
+  } catch (err) {
+    const matchIdx = matches.findIndex(match => match.id === m.id);
+    if (matchIdx >= 0) matches[matchIdx] = JSON.parse(snapshot);
+    scoreAdjustmentUndoStack = scoreAdjustmentUndoStack.filter(entry => entry.adjustmentId !== adjustment.id);
+    throw err;
+  }
+  return {
+    adjustment,
+    message: `Score set to ${scoreTargetLabel(target)}. Score-only records excluded from development stats.`,
+  };
+}
+
+function createScoreAdjustment(target) {
+  const id = `score-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return {
+    id,
+    recordedAt: nowIso(),
+    label: `Score adjusted to ${scoreTargetLabel(target)}`,
+    note: target.note,
+  };
+}
+
+function scoreTargetLabel(target) {
+  const points = target.tiebreak
+    ? `TB${target.tiebreakTarget} ${target.points.player}-${target.points.opponent}`
+    : `${PTS[Math.min(target.points.player, 3)] || target.points.player}-${PTS[Math.min(target.points.opponent, 3)] || target.points.opponent}`;
+  return `${target.sets.player}-${target.sets.opponent} sets, ${target.games.player}-${target.games.opponent}, ${points}`;
+}
+
+function completeSetByScoreOnly(m, winner, adjustment) {
+  const before = setScore(m)[winner === 'player' ? 'p' : 'o'];
+  let guard = 0;
+  while (setScore(m)[winner === 'player' ? 'p' : 'o'] === before) {
+    completeGameByScoreOnly(m, winner, adjustment);
+    guard++;
+    if (guard > 40) throw new Error('Could not build a legal score-only set.');
+  }
+}
+
+function addScoreOnlyGamesToTarget(m, target, adjustment) {
+  let gs = gameScore(m);
+  if (gs.p > target.games.player || gs.o > target.games.opponent) {
+    throw new Error('Current-set games can only move forward.');
+  }
+  let guard = 0;
+  while (gs.p < target.games.player || gs.o < target.games.opponent) {
+    if (gs.p < target.games.player) completeGameByScoreOnly(m, 'player', adjustment);
+    gs = gameScore(m);
+    if (gs.o < target.games.opponent) completeGameByScoreOnly(m, 'opponent', adjustment);
+    gs = gameScore(m);
+    guard++;
+    if (guard > 70) throw new Error('Could not build target game score.');
+  }
+}
+
+function completeGameByScoreOnly(m, preferredWinner, adjustment) {
+  let g = curGame(m);
+  let guard = 0;
+  while (!detectGameWinner(g, m)) {
+    appendScoreOnlyPoint(m, g, preferredWinner, adjustment);
+    guard++;
+    if (guard > 40) throw new Error('Could not build a legal score-only game.');
+  }
+  const winner = detectGameWinner(g, m);
+  finishCurrentGame(m, winner, adjustment.recordedAt);
+}
+
+function prepareActiveGameForTarget(m, target) {
+  const s = curSet(m);
+  let g = curGame(m);
+  if (target.tiebreak && !isTieBreakGame(g)) {
+    if (g.points.length > 0 || g.pp > 0 || g.op > 0) throw new Error('Could not create tie-break target from current game.');
+    g.kind = 'tiebreak';
+    g.tiebreakTarget = target.tiebreakTarget;
+  }
+  if (!target.tiebreak && isTieBreakGame(g)) throw new Error('Target game score is not a tie-break.');
+  g.server = target.server;
+  if (target.tiebreak) {
+    g.tiebreakTarget = target.tiebreakTarget;
+    g.initialTiebreakServer = initialTiebreakServerForNextServer(target.server, target.points.player + target.points.opponent);
+  } else {
+    g.initialTiebreakServer = null;
+    g.tiebreakTarget = null;
+  }
+  s.games[s.games.length - 1] = g;
+}
+
+function initialTiebreakServerForNextServer(nextServer, totalPoints) {
+  const total = normalizePointCount(totalPoints);
+  if (total === 0) return nextServer;
+  const blocksAfterFirst = Math.floor((total - 1) / 2);
+  return blocksAfterFirst % 2 === 0 ? otherSide(nextServer) : nextServer;
+}
+
+function addScoreOnlyPointsToTarget(m, target, adjustment) {
+  const g = curGame(m);
+  if (g.pp > target.points.player || g.op > target.points.opponent) {
+    throw new Error('Current-game points can only move forward.');
+  }
+  while (g.pp < target.points.player) appendScoreOnlyPoint(m, g, 'player', adjustment);
+  while (g.op < target.points.opponent) appendScoreOnlyPoint(m, g, 'opponent', adjustment);
+  refreshCurrentGameContexts(m, g);
+}
+
+function appendScoreOnlyPoint(m, g, side, adjustment) {
+  const dpt = normalizeDptValue({ path: ['NA'], outcome: side === 'player' ? 'WIN' : 'LOSS' });
+  const recordedAt = adjustment.recordedAt;
+  startTiming(m, recordedAt);
+  startTiming(curSet(m), recordedAt);
+  startTiming(g, recordedAt);
+  const pt = {
+    code: buildDptCode(dpt),
+    side,
+    big: false,
+    leak: false,
+    scoreOnly: true,
+    observed: false,
+    adjustmentId: adjustment.id,
+    adjustmentLabel: adjustment.label,
+    adjustmentNote: adjustment.note,
+    rallyBand: null,
+    dpt,
+    context: buildPointContext(m, g, g.pp, g.op, 'unknown'),
+    recordedAt,
+  };
+  g.points.push(pt);
+  if (side === 'player') g.pp++; else g.op++;
+  return pt;
+}
+
+// ============================================================
 // UNDO
 // ============================================================
 
 function undoLast() {
   const m = cur();
   if (!m) return;
+  if (restoreLastScoreAdjustmentIfCurrent(m)) {
+    save();
+    renderAll();
+    return;
+  }
   const s = curSet(m);
   const g = curGame(m);
 
@@ -2659,6 +3175,30 @@ function undoLast() {
   normalizeMatchRecord(m);
   save();
   renderAll();
+}
+
+function restoreLastScoreAdjustmentIfCurrent(m) {
+  const points = allMatchPoints(m);
+  const lastPoint = [...points].reverse().find(Boolean);
+  let idx = -1;
+  for (let i = scoreAdjustmentUndoStack.length - 1; i >= 0; i--) {
+    const entry = scoreAdjustmentUndoStack[i];
+    const lastPointMatches = lastPoint && lastPoint.scoreOnly && entry.adjustmentId === lastPoint.adjustmentId;
+    const noNewerPoints = entry.pointCount !== null && points.length === entry.pointCount;
+    if (entry.matchId === m.id && (lastPointMatches || noNewerPoints)) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) return false;
+  const entry = scoreAdjustmentUndoStack.splice(idx, 1)[0];
+  const restored = JSON.parse(entry.snapshot);
+  const matchIdx = matches.findIndex(match => match.id === m.id);
+  if (matchIdx < 0) return false;
+  matches[matchIdx] = restored;
+  currentId = restored.id;
+  toast('Score adjustment undone', 'success');
+  return true;
 }
 
 // ============================================================
@@ -2836,6 +3376,48 @@ function renderRallyBandToggle() {
   </div>`;
 }
 
+function sheetPointRowsHtml(points) {
+  let html = '';
+  for (let i = 0; i < points.length; i++) {
+    const pt = points[i];
+    if (isScoreOnlyPoint(pt)) {
+      const group = [pt];
+      while (i + 1 < points.length && isScoreOnlyPoint(points[i + 1]) && points[i + 1].adjustmentId === pt.adjustmentId) {
+        group.push(points[++i]);
+      }
+      html += scoreAdjustmentSheetRowHtml(group);
+    } else {
+      html += sheetPointRowHtml(pt);
+    }
+  }
+  return html;
+}
+
+function sheetPointRowHtml(pt) {
+  const isBig = pt.big || String(pt.code || '').includes('*');
+  const cls = isBig ? 'sheet-point big-pt' : pt.leak ? 'sheet-point leak-pt' : 'sheet-point';
+  const display = pt.leak ? `[${esc(pt.code)}]` : esc(pt.code);
+  const tags = pointTagsHtml(pt);
+  if (pt.side === 'player') {
+    return `<div class="${cls}"><span class="code-us">${display}${tags}</span><span></span></div>`;
+  }
+  return `<div class="${cls}"><span></span><span class="code-them">${display}${tags}</span></div>`;
+}
+
+function scoreAdjustmentSheetRowHtml(points) {
+  return `<div class="sheet-point score-adjustment"><span class="score-adjustment-label">${esc(scoreAdjustmentText(points))}</span></div>`;
+}
+
+function scoreAdjustmentText(points) {
+  const group = Array.isArray(points) ? points : [];
+  const first = group[0] || {};
+  const won = group.filter(pt => pt.side === 'player').length;
+  const lost = group.length - won;
+  const label = first.adjustmentLabel || 'Score adjusted';
+  const note = first.adjustmentNote ? ` · ${first.adjustmentNote}` : '';
+  return `${label} · +${won} Player, +${lost} Opponent · score-only${note}`;
+}
+
 function renderCurrentGameSheet(m) {
   const s = curSet(m);
   const g = curGame(m);
@@ -2852,19 +3434,7 @@ function renderCurrentGameSheet(m) {
   if (g.points.length === 0) {
     html += '<div class="sheet-empty">No points recorded in this game yet.</div>';
   } else {
-    g.points.forEach(pt => {
-      const isBig  = pt.big || String(pt.code || '').includes('*');
-      const cls    = isBig ? 'sheet-point big-pt' : pt.leak ? 'sheet-point leak-pt' : 'sheet-point';
-      const display = pt.leak ? `[${esc(pt.code)}]` : esc(pt.code);
-      const tags = pointTagsHtml(pt);
-      html += `<div class="${cls}">`;
-      if (pt.side === 'player') {
-        html += `<span class="code-us">${display}${tags}</span><span></span>`;
-      } else {
-        html += `<span></span><span class="code-them">${display}${tags}</span>`;
-      }
-      html += '</div>';
-    });
+    html += sheetPointRowsHtml(g.points);
   }
 
   if (g.winner) {
@@ -2907,19 +3477,7 @@ function renderSheet() {
     const setTime = timingMeta(s, 'Time');
     html += `<div class="sheet-set-hdr">── Set ${si + 1}${setTime ? ` · ${esc(setTime)}` : ''} ──</div>`;
     s.games.forEach((g, gi) => {
-      g.points.forEach(pt => {
-        const isBig  = pt.big || String(pt.code || '').includes('*');
-        const cls    = isBig ? 'sheet-point big-pt' : pt.leak ? 'sheet-point leak-pt' : 'sheet-point';
-        const display = pt.leak ? `[${esc(pt.code)}]` : esc(pt.code);
-        const tags = pointTagsHtml(pt);
-        html += `<div class="${cls}">`;
-        if (pt.side === 'player') {
-          html += `<span class="code-us">${display}${tags}</span><span></span>`;
-        } else {
-          html += `<span></span><span class="code-them">${display}${tags}</span>`;
-        }
-        html += '</div>';
-      });
+      html += sheetPointRowsHtml(g.points);
       if (g.winner) {
         const gameLabel = isTieBreakGame(g) ? tiebreakLabel(g) : 'Game';
         const winLabel = g.winner === 'player'
@@ -3010,6 +3568,7 @@ function renderAiCoach() {
   }
 
   const all = allMatchPoints(m);
+  const charted = chartedMatchPoints(m);
   const mode = getAiMode();
   const context = getAiContext(m);
   const promptContext = aiContextForPrompt(context);
@@ -3017,7 +3576,7 @@ function renderAiCoach() {
   const loading = isCurrent && aiCoach.loading;
   const text = isCurrent ? aiCoach.text : '';
   const error = isCurrent ? aiCoach.error : '';
-  const disabled = loading || all.length === 0 ? 'disabled' : '';
+  const disabled = loading || charted.length === 0 ? 'disabled' : '';
   const contextDisabled = loading ? 'disabled' : '';
   const buttonLabel = loading ? 'Asking...' : 'Ask AI';
 
@@ -3237,11 +3796,17 @@ function normalizeImportedPoint(pt) {
   if (!dpt) return null;
   const outcome = dptOutcomeDef(dpt.outcome);
   const big = !!pt.big || String(pt.code || '').includes('*');
+  const scoreOnly = !!pt.scoreOnly;
   return {
     code: buildDptCode({ ...dpt, big }),
     side: outcome.side,
     big,
     leak: false,
+    scoreOnly,
+    observed: scoreOnly ? false : pt.observed === false ? false : true,
+    adjustmentId: normalizeAdjustmentText(pt.adjustmentId),
+    adjustmentLabel: normalizeAdjustmentText(pt.adjustmentLabel),
+    adjustmentNote: normalizeAdjustmentText(pt.adjustmentNote),
     rallyBand: normalizeRallyBand(pt.rallyBand),
     dpt,
     context: normalizePointContextValue(pt.context),
@@ -3327,7 +3892,16 @@ function buildScoreSheetText(m, options) {
     const setTime = timingMeta(s, 'Time');
     txt += `\n── Set ${si + 1}${setTime ? ` · ${setTime}` : ''} ──\n`;
     s.games.forEach(g => {
-      g.points.forEach(pt => {
+      for (let i = 0; i < g.points.length; i++) {
+        const pt = g.points[i];
+        if (isScoreOnlyPoint(pt)) {
+          const group = [pt];
+          while (i + 1 < g.points.length && isScoreOnlyPoint(g.points[i + 1]) && g.points[i + 1].adjustmentId === pt.adjustmentId) {
+            group.push(g.points[++i]);
+          }
+          txt += `[${scoreAdjustmentText(group)}]\n`;
+          continue;
+        }
         const tags = pointTextTags(pt);
         const codeText = pt.leak ? `[${pt.code}]` : pt.code;
         const display = tags ? `${codeText} ${tags}` : codeText;
@@ -3336,7 +3910,7 @@ function buildScoreSheetText(m, options) {
         } else {
           txt += `${''.padEnd(COL)}| ${display}\n`;
         }
-      });
+      }
       if (g.winner) {
         const wn = g.winner === 'player' ? playerName : opponentName;
         const gameLabel = isTieBreakGame(g) ? tiebreakLabel(g) : 'Game';
@@ -3889,7 +4463,9 @@ function isBhDamagingPoint(pt) {
 }
 
 function buildStatsModel(m) {
-  const all = allMatchPoints(m);
+  const scoreAll = allMatchPoints(m);
+  const scoreOnlyPts = scoreOnlyMatchPoints(m);
+  const all = chartedMatchPoints(m);
   const bigAll = all.filter(pt => pt.big || String(pt.code || '').includes('*'));
   const dptAll = all.filter(hasDpt);
   const technicalLost = dptAll.filter(pt => pt.dpt.analyticsBucket === 'technical' && pt.side === 'opponent');
@@ -3993,6 +4569,8 @@ function buildStatsModel(m) {
     },
     points: {
       all,
+      scoreAll,
+      scoreOnly: scoreOnlyPts,
       bigAll,
       dptAll,
       serve: servePts,
@@ -4136,6 +4714,9 @@ function buildStatsModel(m) {
       codeBreakdown,
     },
     dataQuality: {
+      chartedPoints: all.length,
+      totalScorePoints: scoreAll.length,
+      scoreOnlyPoints: scoreOnlyPts.length,
       unknownServerPts: unknownServerPts.length,
       unknownServeAttemptPts: serveUnknownAttemptPts.length + returnUnknownAttemptPts.length,
       unknownRallyBandPts: unknownRallyBandPts.length,
@@ -4296,6 +4877,9 @@ function actionCardHtml(card) {
 
 function renderStatsDataQualityNote(model) {
   const notes = [];
+  if (model.dataQuality.scoreOnlyPoints > 0) {
+    notes.push(`${model.dataQuality.scoreOnlyPoints} score-only point${plural(model.dataQuality.scoreOnlyPoints)} excluded from development stats`);
+  }
   if (model.dataQuality.unknownServerPts > 0) {
     notes.push(`${model.dataQuality.unknownServerPts} point${plural(model.dataQuality.unknownServerPts)} missing server context`);
   }
@@ -4309,7 +4893,7 @@ function renderStatsDataQualityNote(model) {
     notes.push(`${model.dataQuality.unclearDiagnosticPts} point${plural(model.dataQuality.unclearDiagnosticPts)} marked NA`);
   }
   if (!notes.length) return '';
-  return `<div class="stats-note warning">${esc(notes.join(' and '))}. They stay in match totals; missing-context points are excluded from affected split stats.</div>`;
+  return `<div class="stats-note warning">${esc(notes.join(' and '))}. Score-only points keep the scoreboard honest; charted-development stats only use observed points.</div>`;
 }
 
 function renderDevelopmentSummary(model) {
@@ -4450,12 +5034,16 @@ function renderStatsDetails(model) {
         ${detailRowHtml('Time', `${esc(m.timing.match)} · Set ${esc(m.timing.set)} · Game ${esc(m.timing.game)}`)}
         ${detailRowHtml('Sets', scoreHtml(m.setScore))}
         ${detailRowHtml('Games', scoreHtml(m.gameScore))}
-        ${detailRowHtml('Total points', recordHtml(model.summary.totalPoints))}
+        ${detailRowHtml('Charted points', recordHtml(model.summary.totalPoints))}
+        ${detailRowHtml('Score-only points', String(model.dataQuality.scoreOnlyPoints))}
+        ${detailRowHtml('Scoreboard points', String(model.dataQuality.totalScorePoints))}
         ${detailRowHtml('Big points', recordHtml(model.summary.bigPoints))}
         ${winner}
       </div>
       <div class="stats-detail-group">
         <div class="stats-detail-heading">Data quality</div>
+        ${detailRowHtml('Charted development sample', String(model.dataQuality.chartedPoints))}
+        ${detailRowHtml('Score-only adjustment sample', String(model.dataQuality.scoreOnlyPoints))}
         ${detailRowHtml('Unknown server context', String(model.dataQuality.unknownServerPts))}
         ${detailRowHtml('Unknown serve attempt', String(model.dataQuality.unknownServeAttemptPts))}
         ${detailRowHtml('Unknown Q/L rally band', String(model.dataQuality.unknownRallyBandPts))}
@@ -4880,8 +5468,8 @@ async function requestAiCoachSummary() {
     toast('Start a match first', 'error');
     return;
   }
-  if (allMatchPoints(m).length === 0) {
-    toast('Record at least one point first', 'error');
+  if (chartedMatchPoints(m).length === 0) {
+    toast('Record at least one observed point first', 'error');
     return;
   }
   const apiKey = getAiApiKey().trim();
@@ -4986,6 +5574,9 @@ function buildAiCoachPayload(m, mode = getAiMode(), coachContextText = aiContext
       action: card.action,
     })),
     dataQuality: {
+      chartedPoints: model.dataQuality.chartedPoints,
+      totalScorePoints: model.dataQuality.totalScorePoints,
+      scoreOnlyPoints: model.dataQuality.scoreOnlyPoints,
       unknownServerPts: model.dataQuality.unknownServerPts,
       unknownServeAttemptPts: model.dataQuality.unknownServeAttemptPts,
       unknownRallyBandPts: model.dataQuality.unknownRallyBandPts,
@@ -5078,6 +5669,7 @@ function buildAiCoachPrompt(payload, mode = getAiMode()) {
     'Use first/second serve splits when they make a clearer serve or return action, but do not overstate thin samples.',
     'Use rally.Q/L context when available: Q means quick point in 0-4 shots; L means long/grind point in 5+ shots and is the grind/tolerance signal.',
     'Treat NA points as known score outcomes with unknown diagnostic reason; use them only as data-quality context.',
+    'Score-only adjustment rows keep the score current after missed charting; do not infer player development patterns from score-only points.',
     'Separate technical execution misses from tactical choice or recovery problems. Do not over-coach neutral/opponent-driven points.',
     'If the sample is thin, say so and keep the advice conservative.',
   ];
@@ -5330,6 +5922,7 @@ function buildAiSystemGuide() {
       rallyBand: 'Q/quick means 0-4 shots. L/long means 5+ shots and is used as the grind/tolerance signal.',
       pressure: 'Automatically computed tags such as break_point, game_point, set_point, match_point, deuce, and advantage.',
       big: 'Manual star for emotionally or tactically important points beyond formal score pressure.',
+      scoreOnly: 'True for score-adjustment points added after missed charting. These maintain score flow and server context but are excluded from development stats.',
     },
     summaryFields: {
       technicalErrors: 'BAD_TECHNICAL losses by our player.',
