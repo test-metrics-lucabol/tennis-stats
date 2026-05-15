@@ -378,6 +378,7 @@
     }
 
     .dpt-neutral { border-color: var(--gray); color: var(--gray); }
+    .dpt-unknown { border-color: #8a94a6; color: #5f6877; }
     .dpt-good { border-color: var(--green); color: var(--green-dark); }
     .dpt-technical { border-color: var(--red); color: var(--red); }
     .dpt-tactical { border-color: var(--amber); color: var(--amber); }
@@ -1100,7 +1101,7 @@
     </p>
     <table class="code-table">
       <tr><th>Step</th><th>Question</th></tr>
-      <tr><td>1</td><td>Was it neutral/opponent-driven, good for our player, technical, or tactical?</td></tr>
+      <tr><td>1</td><td>Was it unclear, neutral/opponent-driven, good for our player, technical, or tactical?</td></tr>
       <tr><td>2</td><td>Which subject or phase explains it?</td></tr>
       <tr><td>3</td><td>Pick a detail if the subject has one.</td></tr>
       <tr><td>4</td><td>If the point was not automatic, choose WIN or LOSS.</td></tr>
@@ -1111,7 +1112,8 @@
     <h3>Diagnostic States</h3>
     <table class="code-table">
       <tr><th>Code</th><th>Meaning</th></tr>
-      <tr><td>N</td><td>Neutral or opponent-driven point; do not over-coach our player.</td></tr>
+      <tr><td>NA</td><td>Not available: the point result is known, but the diagnostic reason was missed.</td></tr>
+      <tr><td>N</td><td>Neutral or opponent-driven point: opponent ace, double fault, missed return, easy miss, or quality shot.</td></tr>
       <tr><td>G</td><td>Good player contribution, including winners, pressure, patience, or defense.</td></tr>
       <tr><td>E</td><td>Technical execution miss after an acceptable choice.</td></tr>
       <tr><td>T</td><td>Tactical choice, target, timing, or recovery problem.</td></tr>
@@ -1126,6 +1128,7 @@
       <tr><td>RET</td><td>Return</td></tr>
       <tr><td>FH</td><td>Forehand</td></tr>
       <tr><td>BH</td><td>Backhand</td></tr>
+      <tr><td>EASY</td><td>Our player left an easy ball for the opponent</td></tr>
       <tr><td>WAP / WAPP</td><td>Approach execution or approach timing</td></tr>
       <tr><td>NET</td><td>Volley, overhead, or net finish</td></tr>
     </table>
@@ -1315,7 +1318,7 @@ const PRESSURE_SHORT_LABELS = {
 };
 
 const OLD_MPTS_STORAGE_KEY = 'tennis_pivot_tracker_matches_v2';
-const DPT_SCHEMA_VERSION = 'Diagnostic_Performance_Tree_v1.3_Optimized';
+const DPT_SCHEMA_VERSION = 'Diagnostic_Performance_Tree_v1.4';
 const STORAGE_KEY = 'tennis_pivot_tracker_dpt_matches_v1';
 const STORAGE_ID  = 'tennis_pivot_tracker_dpt_currentId';
 const AI_KEY_STORAGE = 'tennis_pivot_tracker_gemini_api_key';
@@ -1327,7 +1330,7 @@ const VALID_TABS = ['record', 'sheet', 'stats', 'ai', 'guide', 'matches'];
 
 // Tennis point labels
 const PTS = ['0', '15', '30', '40'];
-const EXPORT_VERSION = 4;
+const EXPORT_VERSION = 5;
 
 const DPT_OUTCOMES = [
   { id: 'WIN', code: 'W', label: 'WIN', side: 'player', cls: 'dpt-win' },
@@ -1341,24 +1344,28 @@ const RALLY_BANDS = [
 
 const DPT_TREE = [
   {
+    id: 'NA',
+    code: 'NA',
+    label: 'Not Available',
+    help: 'Use when the point winner is known but the note taker missed the diagnostic reason.',
+    cls: 'dpt-unknown',
+    analyticsBucket: 'unknown',
+    subjectKind: 'unknown',
+    requiresOutcome: true,
+  },
+  {
     id: 'NEUTRAL',
     code: 'N',
     label: 'Neutral',
-    help: 'Opponent-driven or routine opponent outcome.',
+    help: 'Opponent ace, opponent double fault, missed return, easy miss, or quality shot.',
     cls: 'dpt-neutral',
     analyticsBucket: 'neutral',
     children: [
+      { id: 'ACE', label: 'Opponent Ace', context: { server: 'opponent' }, subjectKind: 'serve', outcome: 'LOSS' },
       { id: 'DFL', label: 'Opponent Double Fault', context: { server: 'opponent' }, subjectKind: 'serve', outcome: 'WIN' },
       { id: 'RET', label: 'Opponent Missed Return', context: { server: 'player' }, subjectKind: 'return', outcome: 'WIN' },
-      {
-        id: 'RALLY',
-        label: 'Rally',
-        subjectKind: 'rally',
-        children: [
-          { id: 'OMR', label: 'Opponent Missed Routine Ball', outcome: 'WIN' },
-          { id: 'QAL', label: 'Quality Opponent Shot', outcome: 'LOSS' },
-        ],
-      },
+      { id: 'MISS', label: 'Opponent Missed Easy Shot', subjectKind: 'rally', outcome: 'WIN' },
+      { id: 'QUAL', label: 'Quality Opponent Shot', subjectKind: 'rally', outcome: 'LOSS' },
     ],
   },
   {
@@ -1443,6 +1450,7 @@ const DPT_TREE = [
           { id: 'LNG', label: 'Missed Long', outcome: 'LOSS' },
           { id: 'WDE', label: 'Missed Wide', outcome: 'LOSS' },
           { id: 'BAL', label: 'Off-Balance Execution', requiresOutcome: true },
+          { id: 'EASY', label: 'Gave Easy Ball', requiresOutcome: true },
         ],
       },
       {
@@ -1455,6 +1463,7 @@ const DPT_TREE = [
           { id: 'WDE', label: 'Missed Wide', outcome: 'LOSS' },
           { id: 'OH-A', code: 'OHA', label: 'Overhit an Attack', outcome: 'LOSS' },
           { id: 'BAL', label: 'Off-Balance Execution', requiresOutcome: true },
+          { id: 'EASY', label: 'Gave Easy Ball', requiresOutcome: true },
         ],
       },
       {
@@ -1467,6 +1476,7 @@ const DPT_TREE = [
           { id: 'WDE', label: 'Missed Wide', outcome: 'LOSS' },
           { id: 'OH-A', code: 'OHA', label: 'Overhit an Attack', outcome: 'LOSS' },
           { id: 'BAL', label: 'Off-Balance Execution', requiresOutcome: true },
+          { id: 'EASY', label: 'Gave Easy Ball', requiresOutcome: true },
         ],
       },
       {
@@ -1477,6 +1487,7 @@ const DPT_TREE = [
           { id: 'NET', label: 'Missed into Net', outcome: 'LOSS' },
           { id: 'LNG', label: 'Missed Long', outcome: 'LOSS' },
           { id: 'WDE', label: 'Missed Wide', outcome: 'LOSS' },
+          { id: 'EASY', label: 'Gave Easy Ball', requiresOutcome: true },
         ],
       },
     ],
@@ -1500,6 +1511,7 @@ const DPT_TREE = [
           { id: 'STG', label: "Played to Opponent's Strength", requiresOutcome: true },
           { id: 'TGT', label: 'Wrong Target Choice', requiresOutcome: true },
           { id: 'REC', label: 'Poor Recovery / Watched the Shot', requiresOutcome: true },
+          { id: 'TURN', label: 'Wrong FH Turn', requiresOutcome: true },
         ],
       },
       {
@@ -3150,7 +3162,7 @@ function parseImportedMatches(data) {
     throw new Error('Unsupported import format. Export matches from this DPT version before importing.');
   }
   if (data.version !== EXPORT_VERSION || data.schema !== DPT_SCHEMA_VERSION) {
-    throw new Error('Unsupported import format. Old MPTS exports cannot be imported into this DPT version.');
+    throw new Error('Unsupported import format. Export matches from this DPT state-machine version before importing.');
   }
   const rawMatches = extractImportedMatchList(data);
   const usedIds = new Set();
@@ -3498,9 +3510,16 @@ function dptOutcomeDef(id) {
 }
 
 function normalizeDptPath(path) {
-  return (Array.isArray(path) ? path : [])
+  return normalizeDptPathAliases((Array.isArray(path) ? path : [])
     .map(part => String(part || '').trim())
-    .filter(Boolean);
+    .filter(Boolean));
+}
+
+function normalizeDptPathAliases(path) {
+  const key = path.join('.');
+  if (key === 'NEUTRAL.RALLY.OMR') return ['NEUTRAL', 'MISS'];
+  if (key === 'NEUTRAL.RALLY.QAL') return ['NEUTRAL', 'QUAL'];
+  return path;
 }
 
 function dptNodeByPath(path) {
@@ -3834,7 +3853,7 @@ function isCreatedFreePoint(pt) {
 function isReceivedFreePoint(pt) {
   const key = dptKey(pt);
   return pt.side === 'player'
-    && (key === 'NEUTRAL.DFL' || key === 'NEUTRAL.RET' || key === 'NEUTRAL.RALLY.OMR');
+    && (key === 'NEUTRAL.DFL' || key === 'NEUTRAL.RET' || key === 'NEUTRAL.MISS');
 }
 
 function isDonatedPoint(pt) {
@@ -3875,6 +3894,7 @@ function buildStatsModel(m) {
   const dptAll = all.filter(hasDpt);
   const technicalLost = dptAll.filter(pt => pt.dpt.analyticsBucket === 'technical' && pt.side === 'opponent');
   const tacticalLost = dptAll.filter(pt => pt.dpt.analyticsBucket === 'tactical' && pt.side === 'opponent');
+  const unclearDiagnosticPts = dptAll.filter(pt => pt.dpt.analyticsBucket === 'unknown');
   const mainTechnicalLeak = topDptPattern(technicalLost);
   const mainTacticalLeak = topDptPattern(tacticalLost);
   const mainDiagnosticLeak = chooseMainDiagnosticLeak(mainTechnicalLeak, mainTacticalLeak);
@@ -3924,7 +3944,7 @@ function buildStatsModel(m) {
   const passiveAttackableReturnPts = returnPts.filter(isPassiveAttackableReturn);
   const longTechnicalLost = longPts.filter(pt => pt.side === 'opponent' && hasDpt(pt) && pt.dpt.analyticsBucket === 'technical');
   const longTacticalLost = longPts.filter(pt => pt.side === 'opponent' && hasDpt(pt) && pt.dpt.analyticsBucket === 'tactical');
-  const longOpponentQualityLost = longPts.filter(pt => dptKey(pt) === 'NEUTRAL.RALLY.QAL');
+  const longOpponentQualityLost = longPts.filter(pt => dptKey(pt) === 'NEUTRAL.QUAL');
   const longFhDamagingPts = longPts.filter(isFhDamagingPoint);
   const longBhDamagingPts = longPts.filter(isBhDamagingPoint);
   const longPatienceWins = longPts.filter(pt => pt.side === 'player' && (dptKey(pt) === 'GOOD.FH.PAT' || dptKey(pt) === 'GOOD.BH.PAT'));
@@ -4008,7 +4028,8 @@ function buildStatsModel(m) {
       positiveWins: dptAll.filter(pt => pt.dpt.analyticsBucket === 'positive' && pt.side === 'player').length,
       positiveLosses: dptAll.filter(pt => pt.dpt.analyticsBucket === 'positive' && pt.side === 'opponent').length,
       neutralWins: dptAll.filter(pt => pt.dpt.analyticsBucket === 'neutral' && pt.side === 'player').length,
-      opponentQualityLosses: dptAll.filter(pt => pt.dpt.pathKey === 'NEUTRAL.RALLY.QAL').length,
+      opponentQualityLosses: dptAll.filter(pt => pt.dpt.pathKey === 'NEUTRAL.QUAL').length,
+      unclearDiagnostics: statsPointRecord(unclearDiagnosticPts),
       technicalErrors: technicalLost.length,
       tacticalErrors: tacticalLost.length,
       mainTechnicalLeak,
@@ -4118,6 +4139,7 @@ function buildStatsModel(m) {
       unknownServerPts: unknownServerPts.length,
       unknownServeAttemptPts: serveUnknownAttemptPts.length + returnUnknownAttemptPts.length,
       unknownRallyBandPts: unknownRallyBandPts.length,
+      unclearDiagnosticPts: unclearDiagnosticPts.length,
       knownServeAttemptTotal,
       knownReturnAttemptTotal,
       knownRallyBandTotal,
@@ -4283,8 +4305,11 @@ function renderStatsDataQualityNote(model) {
   if (model.dataQuality.unknownRallyBandPts > 0) {
     notes.push(`${model.dataQuality.unknownRallyBandPts} point${plural(model.dataQuality.unknownRallyBandPts)} missing Q/L rally context`);
   }
+  if (model.dataQuality.unclearDiagnosticPts > 0) {
+    notes.push(`${model.dataQuality.unclearDiagnosticPts} point${plural(model.dataQuality.unclearDiagnosticPts)} marked NA`);
+  }
   if (!notes.length) return '';
-  return `<div class="stats-note warning">${esc(notes.join(' and '))}. Those points stay in match totals but are excluded from affected split stats.</div>`;
+  return `<div class="stats-note warning">${esc(notes.join(' and '))}. They stay in match totals; missing-context points are excluded from affected split stats.</div>`;
 }
 
 function renderDevelopmentSummary(model) {
@@ -4401,8 +4426,9 @@ function renderDiagnosticPattern(model) {
     ${patternTile}
     ${metricCountTileHtml('Technical losses', model.summary.technicalErrors, 'execution losses')}
     ${metricCountTileHtml('Tactical losses', model.summary.tacticalErrors, 'choice/target losses')}
+    ${metricRecordTileHtml('NA unclear points', model.summary.unclearDiagnostics)}
     ${metricCountTileHtml('Positive wins', model.summary.positiveWins, 'GOOD -> WIN')}
-    ${metricCountTileHtml('Opponent quality', model.summary.opponentQualityLosses, 'N-RALLY-QAL')}
+    ${metricCountTileHtml('Opponent quality', model.summary.opponentQualityLosses, 'N-QUAL-L')}
   </div>
   ${leak ? statsActionLineHtml(dptActionFor(leak.pathKey)) : '<p class="stats-note">No repeated diagnostic pattern has separated yet.</p>'}`;
 
@@ -4433,6 +4459,7 @@ function renderStatsDetails(model) {
         ${detailRowHtml('Unknown server context', String(model.dataQuality.unknownServerPts))}
         ${detailRowHtml('Unknown serve attempt', String(model.dataQuality.unknownServeAttemptPts))}
         ${detailRowHtml('Unknown Q/L rally band', String(model.dataQuality.unknownRallyBandPts))}
+        ${detailRowHtml('NA / unclear diagnostic', String(model.dataQuality.unclearDiagnosticPts))}
       </div>
       <div class="stats-detail-group">
         <div class="stats-detail-heading">Serve evidence</div>
@@ -4673,6 +4700,7 @@ function dptBucketLabel(bucket) {
     tactical: 'Tactical',
     positive: 'Positive',
     neutral: 'Neutral',
+    unknown: 'Unknown',
   };
   return labels[bucket] || 'Diagnostic';
 }
@@ -4685,25 +4713,30 @@ function dptActionFor(pathKey) {
     'BAD_TECHNICAL.RET.LNG': 'Use shorter backswing return reps with deep middle targets.',
     'BAD_TECHNICAL.RET.WDE': 'Aim returns through a bigger middle window before adding width.',
     'BAD_TECHNICAL.RET.BAL': 'Rehearse split-step timing and a compact return from a stable base.',
+    'BAD_TECHNICAL.RET.EASY': 'Make returns either deep middle or clearly short-angle; remove sitter balls first.',
     'BAD_TECHNICAL.FH.NET': 'Rebuild forehand shape and net clearance on neutral balls.',
     'BAD_TECHNICAL.FH.LNG': 'Train forehand spin and finish height to keep attacks inside the last meter.',
     'BAD_TECHNICAL.FH.WDE': 'Use target cones two feet inside the sideline for forehand width control.',
     'BAD_TECHNICAL.FH.OH-A': 'Add height and spin to attack balls before increasing pace.',
     'BAD_TECHNICAL.FH.BAL': 'Require balanced contact before changing direction with the forehand.',
+    'BAD_TECHNICAL.FH.EASY': 'Train forehands through depth targets so neutral balls stop landing attackable.',
     'BAD_TECHNICAL.BH.NET': 'Rebuild backhand shape and net clearance on neutral balls.',
     'BAD_TECHNICAL.BH.LNG': 'Train backhand spin and finish height to keep attacks inside the last meter.',
     'BAD_TECHNICAL.BH.WDE': 'Use target cones two feet inside the sideline for backhand width control.',
     'BAD_TECHNICAL.BH.OH-A': 'Add height and spin to backhand attacks before increasing pace.',
     'BAD_TECHNICAL.BH.BAL': 'Require balanced contact before changing direction with the backhand.',
+    'BAD_TECHNICAL.BH.EASY': 'Train backhands through depth targets so neutral balls stop landing attackable.',
     'BAD_TECHNICAL.NET.NET': 'Drill easy-volley net clearance with quiet hands.',
     'BAD_TECHNICAL.NET.LNG': 'Practice volley depth targets with a shorter punch.',
     'BAD_TECHNICAL.NET.WDE': 'Aim volleys through a bigger middle target before going for angle.',
+    'BAD_TECHNICAL.NET.EASY': 'Practice finishing volleys away from the opponent instead of floating sitters.',
     'BAD_TACTICAL.PAS': 'Step in on attackable serves and block the return deep middle first.',
     'BAD_TACTICAL.WRG-APP': 'Add a go/no-go cue before moving forward from mid-court.',
     'BAD_TACTICAL.FH.ILL': 'Attack only from balance, time, and contact above net height.',
     'BAD_TACTICAL.FH.STG': 'Redirect away from the opponent strength unless the ball is clearly attackable.',
     'BAD_TACTICAL.FH.TGT': 'Use a higher-margin forehand target before changing direction.',
     'BAD_TACTICAL.FH.REC': 'Recover immediately after contact before watching the forehand result.',
+    'BAD_TACTICAL.FH.TURN': 'Use a clear turn/no-turn cue: only run around when time, balance, and court position are all there.',
     'BAD_TACTICAL.BH.ILL': 'Attack only from balance, time, and contact above net height.',
     'BAD_TACTICAL.BH.STG': 'Redirect away from the opponent strength unless the ball is clearly attackable.',
     'BAD_TACTICAL.BH.TGT': 'Use a higher-margin backhand target before changing direction.',
@@ -4934,6 +4967,7 @@ function buildAiCoachPayload(m, mode = getAiMode(), coachContextText = aiContext
       positiveLosses: model.summary.positiveLosses,
       neutralWins: model.summary.neutralWins,
       opponentQualityLosses: model.summary.opponentQualityLosses,
+      unclearDiagnostics: aiRecordFromStatsRecord(model.summary.unclearDiagnostics),
       technicalErrors: model.summary.technicalErrors,
       tacticalErrors: model.summary.tacticalErrors,
       mainDiagnosticLeak: diagnosticLeak ? {
@@ -4954,8 +4988,11 @@ function buildAiCoachPayload(m, mode = getAiMode(), coachContextText = aiContext
     dataQuality: {
       unknownServerPts: model.dataQuality.unknownServerPts,
       unknownServeAttemptPts: model.dataQuality.unknownServeAttemptPts,
+      unknownRallyBandPts: model.dataQuality.unknownRallyBandPts,
+      unclearDiagnosticPts: model.dataQuality.unclearDiagnosticPts,
       knownServeAttemptTotal: model.dataQuality.knownServeAttemptTotal,
       knownReturnAttemptTotal: model.dataQuality.knownReturnAttemptTotal,
+      knownRallyBandTotal: model.dataQuality.knownRallyBandTotal,
     },
     serveReturn: {
       servicePoints: aiRecordFromStatsRecord(model.serve.points),
@@ -5040,6 +5077,7 @@ function buildAiCoachPrompt(payload, mode = getAiMode()) {
     'Prioritize repeated patterns and coachable actions over isolated single-point events.',
     'Use first/second serve splits when they make a clearer serve or return action, but do not overstate thin samples.',
     'Use rally.Q/L context when available: Q means quick point in 0-4 shots; L means long/grind point in 5+ shots and is the grind/tolerance signal.',
+    'Treat NA points as known score outcomes with unknown diagnostic reason; use them only as data-quality context.',
     'Separate technical execution misses from tactical choice or recovery problems. Do not over-coach neutral/opponent-driven points.',
     'If the sample is thin, say so and keep the advice conservative.',
   ];
@@ -5265,12 +5303,13 @@ function buildAiSystemGuide() {
     purpose: 'The Diagnostic Performance Tree records the most useful player-centric reason for a point, not every shot in the rally.',
     perspective: 'Player means our player. Opponent means the other player. Point winners are from our player perspective.',
     flow: [
-      'State: NEUTRAL, GOOD, BAD_TECHNICAL, or BAD_TACTICAL.',
-      'Subject: serve, return, forehand, backhand, net, rally, or approach when needed.',
+      'State: NA, NEUTRAL, GOOD, BAD_TECHNICAL, or BAD_TACTICAL.',
+      'Subject: serve, return, forehand, backhand, net, rally, approach, or unknown when needed.',
       'Detail: compact acronym describing the diagnostic reason.',
       'Outcome: WIN means our player won the point; LOSS means our player lost the point. Some details ask for outcome; obvious details auto-resolve.',
     ],
     states: {
+      NA: 'Not available: the point result is known, but the note taker missed the diagnostic reason.',
       NEUTRAL: 'Opponent-driven outcome or routine opponent error. Do not over-coach our player from these points alone.',
       GOOD: 'Our player contributed positively with a winner, pressure, patience, serve-plus, return pressure, or defense.',
       BAD_TECHNICAL: 'The tactical choice was acceptable, but physical execution failed.',
@@ -5281,6 +5320,7 @@ function buildAiSystemGuide() {
       RET: 'Return choices appear only when our player is returning.',
       FH: 'Forehand rally or attack phase.',
       BH: 'Backhand rally or attack phase.',
+      EASY: 'Our player left an easy ball for the opponent; this may still ask for WIN/LOSS if the point did not end immediately.',
       APP: 'Approach or mid-court move-in phase.',
       NET: 'Volley, overhead, or net finish phase.',
     },
@@ -5295,7 +5335,7 @@ function buildAiSystemGuide() {
       technicalErrors: 'BAD_TECHNICAL losses by our player.',
       tacticalErrors: 'BAD_TACTICAL losses by our player.',
       mainDiagnosticLeak: 'Most repeated technical or tactical loss pattern; usually the best candidate for one practice action.',
-      opponentQualityLosses: 'NEUTRAL.RALLY.QAL losses where opponent quality drove the point.',
+      opponentQualityLosses: 'NEUTRAL.QUAL losses where opponent quality drove the point.',
       codeBreakdown: 'Counts by compact DPT code, split by points won and lost by our player.',
       scoreSheet: 'Human-readable chronological sheet with point codes in player/opponent columns and game/set separators.',
     },

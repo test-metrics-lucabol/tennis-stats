@@ -44,10 +44,11 @@
 - Break points, game points, set points, match points, deuce, and advantage.
 - Manual big-point tags.
 - Diagnostic Performance Tree point tags:
-  - **Neutral**: opponent-driven outcome or routine opponent miss.
+  - **NA**: point result is known, but the diagnostic reason was missed.
+  - **Neutral**: opponent ace, opponent double fault, missed return, easy miss, or quality shot.
   - **Good**: player winner, pressure, patience, serve-plus, return pressure, or defense.
-  - **Technical**: correct idea, failed execution.
-  - **Tactical**: wrong shot choice, target, timing, or recovery.
+  - **Technical**: correct idea, failed execution, including easy balls left for the opponent.
+  - **Tactical**: wrong shot choice, target, timing, recovery, or wrong forehand turn.
   - **Outcome**: player won or lost the point.
 
 ## Tabs at a glance
