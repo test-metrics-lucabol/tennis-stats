@@ -1154,6 +1154,7 @@
       <tr><td>BH</td><td>Backhand</td></tr>
       <tr><td>EASY</td><td>Our player left an easy ball for the opponent</td></tr>
       <tr><td>WAP / WAPP</td><td>Approach execution or approach timing</td></tr>
+      <tr><td>SHRT</td><td>Late to a short ball</td></tr>
       <tr><td>NET</td><td>Volley, overhead, or net finish</td></tr>
     </table>
     <p style="font-size:0.78rem;color:var(--gray);margin-top:6px">
@@ -1609,6 +1610,7 @@ const DPT_TREE = [
     children: [
       { id: 'PAS', label: 'Passive Return on Attackable Serve', context: { server: 'opponent' }, subjectKind: 'return', requiresOutcome: true },
       { id: 'WRG-APP', code: 'WAPP', label: 'Wrong Moment to Approach', subjectKind: 'approach', requiresOutcome: true },
+      { id: 'SHRT', code: 'SHRT', label: 'Late to a Short Ball', subjectKind: 'rally', requiresOutcome: true },
       {
         id: 'FH',
         label: 'Forehand',
