@@ -67,7 +67,7 @@
 ## Match options
 
 - One set, best of 3, or best of 5.
-- Normal deciding set, 7-point tie-break at 6-6, or 10-point tie-break at 6-6.
+- Normal deciding set, 7-point tie-break at 6-6, 10-point tie-break at 6-6, or a deciding-set match tie-break to 10 from 0-0.
 - Regular deuce/advantage or golden point/no-ad.
 - Player or opponent serves first.
 

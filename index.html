@@ -1258,6 +1258,7 @@
         <option value="tiebreak7">Tie-break to 7 at 6-6</option>
         <option value="normal">Normal — win by 2 games</option>
         <option value="tiebreak10">Tie-break to 10 at 6-6</option>
+        <option value="matchTiebreak10">Match tie-break to 10 from 0-0</option>
       </select>
       <div class="form-help">Applies to the deciding set. Earlier sets use a 7-point tie-break at 6-6.</div>
     </div>
@@ -1841,6 +1842,14 @@ function normalizeMatchFormat(value, legacyFormat = 3) {
     };
   }
 
+  if (finalSource.mode === 'matchTiebreak') {
+    return {
+      bestOfSets,
+      gameScoring,
+      finalSet: { mode: 'matchTiebreak', tiebreakAt: 0, tiebreakTarget: 10 },
+    };
+  }
+
   const target = [7, 10].includes(Number(finalSource.tiebreakTarget)) ? Number(finalSource.tiebreakTarget) : 7;
   return {
     bestOfSets,
@@ -1859,7 +1868,9 @@ function matchFormatFromInputs() {
   const gameScoring = qs('#inp-game-scoring').value === 'noAd' ? 'noAd' : 'regular';
   const finalSet = finalSetValue === 'normal'
     ? { mode: 'normal', tiebreakAt: 6, tiebreakTarget: null }
-    : { mode: 'tiebreak', tiebreakAt: 6, tiebreakTarget: finalSetValue === 'tiebreak10' ? 10 : 7 };
+    : finalSetValue === 'matchTiebreak10'
+      ? { mode: 'matchTiebreak', tiebreakAt: 0, tiebreakTarget: 10 }
+      : { mode: 'tiebreak', tiebreakAt: 6, tiebreakTarget: finalSetValue === 'tiebreak10' ? 10 : 7 };
 
   return { bestOfSets, gameScoring, finalSet };
 }
@@ -1867,7 +1878,11 @@ function matchFormatFromInputs() {
 function formatSummary(formatOrMatch) {
   const fmt = formatOrMatch && formatOrMatch.matchFormat ? matchFormat(formatOrMatch) : normalizeMatchFormat(formatOrMatch);
   const length = fmt.bestOfSets === 1 ? '1 set' : `Bo${fmt.bestOfSets}`;
-  const finalSet = fmt.finalSet.mode === 'normal' ? 'Final normal' : `Final TB${fmt.finalSet.tiebreakTarget}`;
+  const finalSet = fmt.finalSet.mode === 'normal'
+    ? 'Final normal'
+    : fmt.finalSet.mode === 'matchTiebreak'
+      ? `Final MTB${fmt.finalSet.tiebreakTarget}`
+      : `Final TB${fmt.finalSet.tiebreakTarget}`;
   const scoring = fmt.gameScoring === 'noAd' ? 'Golden point' : 'Regular';
   return `${length} · ${finalSet} · ${scoring}`;
 }
@@ -1947,7 +1962,12 @@ function detectGameWinnerFromCounts(p, o, format, gameKind = 'standard', tiebrea
   return null;
 }
 
-function newSet(server = null)  { return { games: [newGame(server)], winner: null, timing: blankTiming() }; }
+function newSet(server = null, openingTiebreakTarget = null)  {
+  const firstGame = openingTiebreakTarget === null
+    ? newGame(server)
+    : newTiebreakGame(server, openingTiebreakTarget);
+  return { games: [firstGame], winner: null, timing: blankTiming() };
+}
 function newGame(server = null, kind = 'standard', tiebreakTarget = null) {
   const normalizedKind = kind === 'tiebreak' ? 'tiebreak' : 'standard';
   const normalizedServer = isSide(server) ? server : null;
@@ -2202,9 +2222,11 @@ function normalizeActiveSetTiebreak(m, s) {
   if (!s || s.winner || !Array.isArray(s.games) || s.games.length === 0) return false;
   const g = s.games[s.games.length - 1];
   if (!g || g.winner || g.points.length > 0 || isTieBreakGame(g)) return false;
-  if (!shouldStartSetTiebreak(m, s)) return false;
+  const startSetTiebreak = shouldStartSetTiebreak(m, s);
+  const startMatchTiebreak = shouldStartSetMatchTiebreak(m, s);
+  if (!startSetTiebreak && !startMatchTiebreak) return false;
   g.kind = 'tiebreak';
-  g.tiebreakTarget = tiebreakTargetForSet(m);
+  g.tiebreakTarget = startMatchTiebreak ? decidingSetMatchTiebreakTarget(m) : tiebreakTargetForSet(m);
   g.initialTiebreakServer = isSide(g.server) ? g.server : null;
   return true;
 }
@@ -2848,7 +2870,7 @@ function readSetScoreTarget(options = {}) {
     games: { player: playerGames, opponent: opponentGames },
     points,
     tiebreak,
-    tiebreakTarget: tiebreak ? tiebreakTargetForScoreState(m, playerSets, opponentSets) : null,
+    tiebreakTarget: tiebreak ? tiebreakTargetForScoreState(m, playerSets, opponentSets, playerGames, opponentGames) : null,
     server: qs('#setScoreServer').value === 'opponent' ? 'opponent' : 'player',
     note: normalizeAdjustmentText(qs('#setScoreNote').value),
   };
@@ -2874,17 +2896,23 @@ function readRegularPointTarget(m, options = {}) {
 }
 
 function scoreTargetIsTiebreak(m, playerSets, opponentSets, playerGames, opponentGames) {
-  return playerGames === 6
-    && opponentGames === 6
-    && tiebreakTargetForScoreState(m, playerSets, opponentSets) !== null;
+  return tiebreakTargetForScoreState(m, playerSets, opponentSets, playerGames, opponentGames) !== null;
 }
 
-function tiebreakTargetForScoreState(m, playerSets, opponentSets) {
+function tiebreakTargetForScoreState(m, playerSets, opponentSets, playerGames, opponentGames) {
   const fmt = matchFormat(m);
   const needed = setsNeeded(m);
   const deciding = playerSets === needed - 1 && opponentSets === needed - 1;
-  if (deciding) return fmt.finalSet.mode === 'tiebreak' ? fmt.finalSet.tiebreakTarget : null;
-  return 7;
+  if (deciding) {
+    if (fmt.finalSet.mode === 'matchTiebreak') {
+      return playerGames === 0 && opponentGames === 0 ? fmt.finalSet.tiebreakTarget : null;
+    }
+    if (fmt.finalSet.mode === 'tiebreak') {
+      return playerGames === 6 && opponentGames === 6 ? fmt.finalSet.tiebreakTarget : null;
+    }
+    return null;
+  }
+  return playerGames === 6 && opponentGames === 6 ? 7 : null;
 }
 
 function validateSetScoreTarget(m, target) {
@@ -2903,6 +2931,9 @@ function validateSetScoreTarget(m, target) {
   }
   if (target.games.player > 30 || target.games.opponent > 30) {
     throw new Error('Current-set games must be 30 or lower.');
+  }
+  if (targetSetUsesMatchTiebreak(m, target) && (target.games.player !== 0 || target.games.opponent !== 0)) {
+    throw new Error('Deciding match tie-break format uses 0-0 games in the current set.');
   }
   if (!target.tiebreak && target.games.player === 6 && target.games.opponent === 6) {
     throw new Error('This format does not start a tie-break at 6-6 in the current set.');
@@ -2941,6 +2972,14 @@ function targetSetAllowsExtendedGames(m, target) {
   const fmt = matchFormat(m);
   const needed = setsNeeded(m);
   return fmt.finalSet.mode === 'normal'
+    && target.sets.player === needed - 1
+    && target.sets.opponent === needed - 1;
+}
+
+function targetSetUsesMatchTiebreak(m, target) {
+  const fmt = matchFormat(m);
+  const needed = setsNeeded(m);
+  return fmt.finalSet.mode === 'matchTiebreak'
     && target.sets.player === needed - 1
     && target.sets.opponent === needed - 1;
 }
@@ -3233,7 +3272,8 @@ function finishCurrentGame(m, winner, completedAt = nowIso()) {
       m.winner  = ss.p >= needed ? 'player' : 'opponent';
       completeTiming(m, completedAt);
     } else {
-      m.sets.push(newSet(nextServer));
+      const openingTiebreakTarget = shouldStartNextSetMatchTiebreak(m, ss) ? decidingSetMatchTiebreakTarget(m) : null;
+      m.sets.push(newSet(nextServer, openingTiebreakTarget));
     }
   } else if (shouldStartSetTiebreak(m, s)) {
     s.games.push(newTiebreakGame(nextServer, tiebreakTargetForSet(m)));
@@ -3264,6 +3304,26 @@ function tiebreakTargetForSet(m) {
   return 7;
 }
 
+function decidingSetMatchTiebreakTarget(m) {
+  const fmt = matchFormat(m);
+  return fmt.finalSet.mode === 'matchTiebreak' ? fmt.finalSet.tiebreakTarget : null;
+}
+
+function shouldStartNextSetMatchTiebreak(m, setScoreAfterCompletedSet) {
+  const target = decidingSetMatchTiebreakTarget(m);
+  if (target === null) return false;
+  const needed = setsNeeded(m);
+  return setScoreAfterCompletedSet.p === needed - 1 && setScoreAfterCompletedSet.o === needed - 1;
+}
+
+function shouldStartSetMatchTiebreak(m, s) {
+  if (!s || s.winner || !Array.isArray(s.games) || s.games.length === 0) return false;
+  if (!isDecidingSet(m)) return false;
+  const gs = gameScoreForSet(s);
+  if (gs.p !== 0 || gs.o !== 0) return false;
+  return decidingSetMatchTiebreakTarget(m) !== null;
+}
+
 function shouldStartSetTiebreak(m, s) {
   if (!s || s.winner || !Array.isArray(s.games) || s.games.length === 0) return false;
   const lastGame = s.games[s.games.length - 1];
@@ -3271,6 +3331,33 @@ function shouldStartSetTiebreak(m, s) {
   const gs = gameScoreForSet(s);
   if (gs.p !== 6 || gs.o !== 6) return false;
   return tiebreakTargetForSet(m) !== null;
+}
+
+function isDecidingSetRecord(m, s) {
+  if (!m || !s || !s.winner || !Array.isArray(m.sets)) return false;
+  const setIndex = m.sets.indexOf(s);
+  if (setIndex < 0) return false;
+  const needed = setsNeeded(m);
+  let playerCompleted = 0;
+  let opponentCompleted = 0;
+  for (let i = 0; i < setIndex; i++) {
+    const winner = m.sets[i] && m.sets[i].winner;
+    if (winner === 'player') playerCompleted++;
+    if (winner === 'opponent') opponentCompleted++;
+  }
+  return playerCompleted === needed - 1 && opponentCompleted === needed - 1;
+}
+
+function setCompletedScoreLabel(m, s) {
+  const playerGamesWon = s.games.filter(g => g.winner === 'player').length;
+  const opponentGamesWon = s.games.filter(g => g.winner === 'opponent').length;
+  if (!isDecidingSetRecord(m, s) || decidingSetMatchTiebreakTarget(m) === null) {
+    return `${playerGamesWon}–${opponentGamesWon}`;
+  }
+  const decidingTiebreak = s.games.find(g => isTieBreakGame(g) && g.winner);
+  if (!decidingTiebreak) return `${playerGamesWon}–${opponentGamesWon}`;
+  const target = normalizePointCount(decidingTiebreak.tiebreakTarget, 10);
+  return `TB${target} ${normalizePointCount(decidingTiebreak.pp)}–${normalizePointCount(decidingTiebreak.op)}`;
 }
 
 // ============================================================
@@ -3491,10 +3578,9 @@ function renderSheet() {
       }
     });
     if (s.winner) {
-      const sp = s.games.filter(g => g.winner === 'player').length;
-      const so = s.games.filter(g => g.winner === 'opponent').length;
+      const scoreLabel = setCompletedScoreLabel(m, s);
       const setScoreTime = timingMeta(s, 'Time');
-      html += `<div class="sheet-set-hdr">Score: ${sp}–${so}${setScoreTime ? ` · ${esc(setScoreTime)}` : ''}</div>`;
+      html += `<div class="sheet-set-hdr">Score: ${esc(scoreLabel)}${setScoreTime ? ` · ${esc(setScoreTime)}` : ''}</div>`;
     }
   });
 
@@ -3921,10 +4007,9 @@ function buildScoreSheetText(m, options) {
       }
     });
     if (s.winner) {
-      const sp = s.games.filter(g => g.winner === 'player').length;
-      const so = s.games.filter(g => g.winner === 'opponent').length;
+      const scoreLabel = setCompletedScoreLabel(m, s);
       const setScoreTime = timingMeta(s, 'Time');
-      txt += `\nScore: ${sp}–${so}${setScoreTime ? ` · ${setScoreTime}` : ''}\n`;
+      txt += `\nScore: ${scoreLabel}${setScoreTime ? ` · ${setScoreTime}` : ''}\n`;
     }
   });
 
