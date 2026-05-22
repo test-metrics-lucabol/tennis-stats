@@ -520,6 +520,110 @@
       box-shadow: var(--shadow);
     }
 
+    .stats-scoreline {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 11px;
+      margin-bottom: 10px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #f8fafc 0%, #edf4fb 100%);
+      border: 1px solid #dde8f2;
+    }
+
+    .stats-scoreline > div { min-width: 0; }
+
+    .stats-score-main {
+      color: var(--text);
+      font-size: 0.95rem;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .stats-score-sub {
+      color: var(--gray);
+      font-size: 0.74rem;
+      font-weight: 700;
+      line-height: 1.35;
+      margin-top: 2px;
+    }
+
+    .stats-status-pill,
+    .stats-time-chip {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 800;
+      line-height: 1.25;
+      white-space: nowrap;
+    }
+
+    .stats-status-pill {
+      padding: 4px 8px;
+      color: var(--green-dark);
+      background: #e8f5ef;
+      border: 1px solid #bde3cf;
+    }
+
+    .stats-time-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .stats-time-chip {
+      padding: 3px 7px;
+      color: var(--blue);
+      background: #edf4fb;
+      border: 1px solid #d5e3ef;
+    }
+
+    .stats-compare {
+      overflow-x: auto;
+    }
+
+    .stats-compare-grid {
+      display: grid;
+      grid-template-columns: minmax(108px, 1.35fr) minmax(86px, 1fr) minmax(86px, 1fr);
+      gap: 0 8px;
+      min-width: 340px;
+    }
+
+    .stats-compare-head,
+    .stats-compare-row {
+      display: contents;
+    }
+
+    .stats-compare-head > span {
+      color: var(--gray);
+      font-size: 0.66rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 0 0 6px;
+      border-bottom: 2px solid var(--gray-light);
+    }
+
+    .stats-compare-row > span {
+      padding: 7px 0;
+      border-bottom: 1px solid var(--gray-light);
+      font-size: 0.78rem;
+      line-height: 1.3;
+    }
+
+    .stats-compare-label {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .stats-compare-value {
+      text-align: right;
+      font-weight: 700;
+    }
+
     .stats-title {
       display: flex;
       align-items: center;
@@ -687,6 +791,72 @@
     .stat-us   { color: var(--green-dark); font-weight: 700; min-width: 28px; text-align: right; }
     .stat-them { color: var(--red); font-weight: 700; min-width: 28px; text-align: right; }
     .stat-pct { color: var(--gray); font-size: 0.76rem; }
+
+    .stat-info-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .stat-info-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border: 1px solid #c9d3df;
+      border-radius: 999px;
+      background: var(--white);
+      color: var(--blue);
+      font-size: 0.66rem;
+      font-weight: 900;
+      line-height: 1;
+      text-transform: none;
+      cursor: pointer;
+      flex: 0 0 auto;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .stat-info-btn:active { transform: scale(0.94); }
+
+    .stat-info-tooltip {
+      position: fixed;
+      display: none;
+      z-index: 1000;
+      max-width: min(280px, calc(100vw - 24px));
+      padding: 8px 10px;
+      border: 1px solid #c9d3df;
+      border-radius: 10px;
+      background: var(--white);
+      color: var(--text);
+      box-shadow: var(--shadow);
+      font-size: 0.78rem;
+      line-height: 1.45;
+      pointer-events: none;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .stat-info-tooltip.show {
+      display: block;
+    }
+
+    .stat-info-tooltip-title {
+      color: var(--blue);
+      font-size: 0.72rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-info-tooltip-body {
+      color: var(--text);
+      font-size: 0.78rem;
+      line-height: 1.45;
+      white-space: pre-line;
+    }
 
     .stats-details {
       margin-top: 4px;
@@ -1181,7 +1351,7 @@
     <table class="code-table">
       <tr><th>Context</th><th>How it works</th></tr>
       <tr><td>Server</td><td>Choose the first server once. The app alternates by game; use Srv only to correct the current game.</td></tr>
-      <tr><td>Serve used</td><td>Use the 1st/2nd toggle before recording a point. It resets to 1st after each point; second serves are shown as 2nd on the sheet.</td></tr>
+      <tr><td>Serve used</td><td>Use the 1st/2nd toggle before recording any service point, whether the player or opponent is serving. It resets to 1st after each point; second serves are shown as 2nd on the sheet.</td></tr>
       <tr><td>Rally</td><td>Use Q for quick points decided in 0-4 shots. Tap L when the rally reaches 5+ shots; Q/L appears on the sheet and powers grind stats.</td></tr>
       <tr><td>Score</td><td>Use Score when charting resumes after missed play. Set sets, games, current-game points, and next server; the app adds score-only rows that do not count in development stats.</td></tr>
       <tr><td>Tree filter</td><td>The tree uses server context to hide impossible serve and return choices.</td></tr>
@@ -1194,8 +1364,9 @@
   <div class="guide-section">
     <h3>Stats Rule</h3>
     <p style="font-size:0.82rem;line-height:1.6">
-      The Stats screen keeps serve, return, Q/L rally, and pressure splits, then separates the main
-      <strong>technical</strong> and <strong>tactical</strong> diagnostic patterns into a simple action board and full audit details.
+      The Stats screen starts with a match snapshot and only shows opponent columns where the app tracks a real equivalent.
+      It keeps serve, return, Q/L rally, and pressure splits, then separates the main
+      <strong>technical</strong> and <strong>tactical</strong> player patterns into a simple action board and full audit details.
       Score-only rows keep match score and pressure context correct, but they are excluded from player-development stats.
     </p>
   </div>
@@ -1399,6 +1570,7 @@
   </div>
 </div>
 
+<div class="stat-info-tooltip" id="statInfoTooltip" role="tooltip"></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1450,6 +1622,210 @@ const RALLY_BANDS = [
   { id: 'quick', code: 'Q', label: 'Quick', detail: '0-4' },
   { id: 'long', code: 'L', label: 'Long', detail: '5+' },
 ];
+
+const STAT_INFO = {
+  'Total points': {
+    body: 'Charted development points won by the player vs opponent. Score-only adjustment rows are excluded.\nFormula: player wins + opponent wins from observed points.',
+  },
+  'Match time': {
+    body: 'Elapsed time from the first recorded stat to now, or to match completion. The Match Snapshot formats it as hours:minutes.',
+  },
+  'Long-point share': {
+    body: 'How often the point reached the long-rally band.\nFormula: L points ÷ known Q/L points. Q = 0-4 shots; L = 5+ shots.',
+  },
+  'Pressure points': {
+    body: 'Observed points whose score context has at least one pressure tag.\nFormula: break_point + game_point + set_point + match_point + deuce + advantage contexts, counted once per point.',
+  },
+  '1st serve in': {
+    body: 'First serves made from known serve-attempt points.\nFormula: 1st-serve points ÷ (1st-serve points + 2nd-serve points). Unknown-attempt points are excluded.',
+  },
+  'Serve points won': {
+    body: 'Points won when that player served.\nFormula: points with server = player and point winner = server ÷ all points served by that player.',
+  },
+  'Return points won': {
+    body: 'Points won when that player returned.\nFormula: points with server = opponent and point winner = returner ÷ all return points.',
+  },
+  '1st serve won': {
+    body: 'Points won after a first serve was used.\nFormula: 1st-serve points won ÷ all known 1st-serve points.',
+  },
+  '2nd serve won': {
+    body: 'Points won after a second serve was used.\nFormula: 2nd-serve points won ÷ all known 2nd-serve points.',
+  },
+  'Double faults': {
+    body: 'Serve points lost because the server double faulted.\nThe % is measured as double faults ÷ total service points for that player.\nPlayer count: BAD_TECHNICAL.DFL.\nOpponent count: NEUTRAL.DFL.',
+  },
+  'Break pts saved': {
+    body: 'Break points won by the server.\nFormula: break_point points on serve won by the serving player ÷ all break points faced on serve.',
+  },
+  'Break pts converted': {
+    body: 'Break points won by the returner.\nFormula: break_point points on return won by the returning player ÷ all break-point return chances.',
+  },
+  'Break pts won': {
+    body: 'Player break points converted on return.\nFormula: break_point points with opponent serving and player winning ÷ all player break-point return chances.',
+  },
+  'Quick points': {
+    body: 'Points marked Q.\nFormula: Q points won ÷ all Q points. Q means the point ended in 0-4 shots.',
+  },
+  'Short points': {
+    body: 'Points marked Q.\nFormula: Q points won ÷ all Q points. Q means the point ended in 0-4 shots.',
+  },
+  'Long points': {
+    body: 'Points marked L.\nFormula: L points won ÷ all L points. L means the point reached 5+ shots.',
+  },
+  'Serve': {
+    body: 'A compact read of serve performance.\nFormula: service points won plus double-fault rate. Double-fault rate = BAD_TECHNICAL.DFL ÷ player service points.',
+  },
+  'Return': {
+    body: 'A compact read of return performance.\nFormula: return points won plus return-error count. Return errors = BAD_TECHNICAL.RET.* losses.',
+  },
+  'FH winner:error': {
+    body: 'Forehand clean production compared with forehand technical misses.\nFormula: GOOD.FH.WIN wins : BAD_TECHNICAL.FH.* losses. This is player-only.',
+  },
+  'BH winner:error': {
+    body: 'Backhand clean production compared with backhand technical misses.\nFormula: GOOD.BH.WIN wins : BAD_TECHNICAL.BH.* losses. This is player-only.',
+  },
+  'Free vs donated': {
+    body: 'Simple free-point balance.\nMain number: total free points : donated points.\nFree points = created free + received free.\nCreated free = GOOD.SRV.ACE + GOOD.SRV.SRVP + GOOD.RET.WIN.\nReceived free = NEUTRAL.DFL + NEUTRAL.RET + NEUTRAL.MISS.\nDonated = BAD_TECHNICAL.* losses by the player.\nDifferential = created free + received free - donated.',
+  },
+  'Top leak': {
+    body: 'Most repeated technical or tactical loss pattern.\nFormula: compare BAD_TECHNICAL.* and BAD_TACTICAL.* loss-code counts, then show the strongest repeated pattern.',
+  },
+  'DF / service pts': {
+    body: 'Double faults as a share of total service points.\nFormula: BAD_TECHNICAL.DFL ÷ player service points.',
+  },
+  'DF / attempts': {
+    body: 'Double faults as a share of estimated serve attempts.\nFormula: BAD_TECHNICAL.DFL ÷ (service points + known second-serve points).',
+  },
+  'Serve free pts': {
+    body: 'Player service points won cheaply.\nFormula: GOOD.SRV.ACE + GOOD.SRV.SRVP + NEUTRAL.RET.',
+  },
+  'Serve donations': {
+    body: 'Player service points donated by technical errors.\nFormula: BAD_TECHNICAL.* losses on player service points.',
+  },
+  'Top serve loss': {
+    body: 'Most common diagnostic code among player service points lost.',
+  },
+  'Return points': {
+    body: 'Player points while returning.\nFormula: points with opponent serving, split into player won vs opponent won.',
+  },
+  'Return vs 1st': {
+    body: 'Player return record against known first serves.\nFormula: return points won vs opponent 1st serve ÷ all known opponent 1st-serve points.',
+  },
+  'Return vs 2nd': {
+    body: 'Player return record against known second serves.\nFormula: return points won vs opponent 2nd serve ÷ all known opponent 2nd-serve points.',
+  },
+  'Return errors': {
+    body: 'Player return technical misses.\nFormula: BAD_TECHNICAL.RET.* losses ÷ player return points.',
+  },
+  'Pressure returns': {
+    body: 'High-pressure return points recorded as a positive return action.\nFormula: GOOD.RET.PRC points ÷ player return points.',
+  },
+  'Passive attackable': {
+    body: 'Return points where the player was passive on an attackable serve.\nFormula: BAD_TACTICAL.PAS points ÷ player return points.',
+  },
+  'Top return loss': {
+    body: 'Most common diagnostic code among player return points lost.',
+  },
+  'Grind record': {
+    body: 'Player record in long rallies.\nFormula: L points won ÷ all L points. L = 5+ shots.',
+  },
+  'Grind share': {
+    body: 'Share of known Q/L points that became long rallies.\nFormula: L points ÷ (Q points + L points).',
+  },
+  'Top grind loss': {
+    body: 'Most common diagnostic code among long-rally points lost.',
+  },
+  'Grind on serve': {
+    body: 'Player record in L points that started with the player serving.',
+  },
+  'Grind on return': {
+    body: 'Player record in L points that started with the opponent serving.',
+  },
+  'Grind technical': {
+    body: 'Long-rally losses caused by technical execution.\nFormula: L + BAD_TECHNICAL.* losses.',
+  },
+  'Grind tactical': {
+    body: 'Long-rally losses caused by tactical choice, target, timing, or recovery.\nFormula: L + BAD_TACTICAL.* losses.',
+  },
+  'Grind patience wins': {
+    body: 'Long-rally wins credited to patience.\nFormula: L + GOOD.FH.PAT wins + L + GOOD.BH.PAT wins.',
+  },
+  'Quick Q points': {
+    body: 'Player record in points marked Q.\nFormula: Q points won ÷ all Q points. Q = 0-4 shots.',
+  },
+  'Grind FH/BH damage': {
+    body: 'Long-rally damage by side.\nFormula: L + BAD_TECHNICAL.FH/BH.* losses + L + BAD_TACTICAL.FH/BH.* losses.',
+  },
+  'Grind opponent quality losses': {
+    body: 'Long-rally losses credited to opponent quality.\nFormula: L + NEUTRAL.QUAL losses.',
+  },
+  'FH productive:damage': {
+    body: 'Forehand positive points compared with forehand damaging points.\nFormula: GOOD.FH.(WIN + PRC + PAT) : BAD_TECHNICAL.FH.* + BAD_TACTICAL.FH.* losses.',
+  },
+  'BH productive:damage': {
+    body: 'Backhand positive points compared with backhand damaging points.\nFormula: GOOD.BH.(WIN + PRC + PAT) : BAD_TECHNICAL.BH.* + BAD_TACTICAL.BH.* losses.',
+  },
+  'Top FH technical miss': {
+    body: 'Most common BAD_TECHNICAL.FH.* loss code.',
+  },
+  'Top BH technical miss': {
+    body: 'Most common BAD_TECHNICAL.BH.* loss code.',
+  },
+  'Top FH tactical loss': {
+    body: 'Most common BAD_TACTICAL.FH.* loss code.',
+  },
+  'Top BH tactical loss': {
+    body: 'Most common BAD_TACTICAL.BH.* loss code.',
+  },
+  'Created free pts': {
+    body: 'Free points created by the player.\nFormula: GOOD.SRV.ACE + GOOD.SRV.SRVP + GOOD.RET.WIN.',
+  },
+  'Received free pts': {
+    body: 'Free points received from opponent misses.\nFormula: NEUTRAL.DFL + NEUTRAL.RET + NEUTRAL.MISS.',
+  },
+  'Donated pts': {
+    body: 'Points donated by player technical errors.\nFormula: BAD_TECHNICAL.* losses.',
+  },
+  'Free differential': {
+    body: 'Free-point balance.\nFormula: created free points + received free points - donated points.',
+  },
+  'Donations / 10': {
+    body: 'Donated technical-error points normalized per 10 charted points.\nFormula: donated points ÷ total charted points × 10.',
+  },
+  'Game/set/match pts': {
+    body: 'Player record when the next point could win a game, set, or match for either side.\nFormula: points tagged game_point, set_point, or match_point.',
+  },
+  'Pressure DFs': {
+    body: 'Player double faults on pressure points.\nFormula: pressure points with BAD_TECHNICAL.DFL ÷ all pressure points.',
+  },
+  'Pressure technical': {
+    body: 'Pressure-point losses from technical execution.\nFormula: pressure + BAD_TECHNICAL.* losses.',
+  },
+  'Pressure tactical': {
+    body: 'Pressure-point losses from tactical choice, target, timing, or recovery.\nFormula: pressure + BAD_TACTICAL.* losses.',
+  },
+  'Most common pressure diagnostic': {
+    body: 'Most frequent diagnostic code among all pressure points, won or lost.',
+  },
+  'Biggest pattern': {
+    body: 'The repeated technical or tactical loss pattern selected as the strongest diagnostic leak.',
+  },
+  'Technical losses': {
+    body: 'Player losses with technical execution as the diagnostic bucket.\nFormula: BAD_TECHNICAL.* losses.',
+  },
+  'Tactical losses': {
+    body: 'Player losses with tactical choice, target, timing, or recovery as the diagnostic bucket.\nFormula: BAD_TACTICAL.* losses.',
+  },
+  'NA unclear points': {
+    body: 'Points marked NA because the result is known but the diagnostic reason was missed.',
+  },
+  'Positive wins': {
+    body: 'Player wins credited to a positive player contribution.\nFormula: GOOD.* points won by the player.',
+  },
+  'Opponent quality': {
+    body: 'Losses credited to opponent quality.\nFormula: NEUTRAL.QUAL losses.',
+  },
+};
 
 const DPT_TREE = [
   {
@@ -2155,6 +2531,15 @@ function formatDuration(ms) {
     : `${minutes}:${pad(remainingSeconds)}`;
 }
 
+function formatDurationHoursMinutes(ms) {
+  const totalMs = normalizeDurationMs(ms);
+  if (totalMs === null) return '—';
+  const totalMinutes = Math.floor(totalMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}:${String(minutes).padStart(2, '0')}`;
+}
+
 function timingLabel(record) {
   const ms = currentDurationMs(record);
   return ms === null ? '—' : formatDuration(ms);
@@ -2360,6 +2745,9 @@ function normalizeStoredPoint(pt) {
   }
   if (pt.context !== undefined) {
     const normalized = normalizePointContextValue(pt.context);
+    if (normalized && (isDoubleFaultPoint(pt) || isOpponentDoubleFaultPoint(pt))) {
+      normalized.serveAttempt = 'second';
+    }
     if (JSON.stringify(pt.context) !== JSON.stringify(normalized)) {
       pt.context = normalized;
       changed = true;
@@ -2735,7 +3123,7 @@ function setPendingRallyBand(value) {
 }
 
 function serveAttemptForDpt(dpt) {
-  if (dpt && dpt.pathKey === 'BAD_TECHNICAL.DFL') {
+  if (dpt && (dpt.pathKey === 'BAD_TECHNICAL.DFL' || dpt.pathKey === 'NEUTRAL.DFL')) {
     return 'second';
   }
   return currentPendingServeAttempt();
@@ -3442,9 +3830,13 @@ function renderServeAttemptToggle() {
     return;
   }
   const current = currentPendingServeAttempt();
+  const ctx = currentPointContext(m);
+  const serverName = ctx.server === 'player' ? shortName(m.player, 'Player')
+    : ctx.server === 'opponent' ? shortName(m.opponent, 'Opponent')
+    : 'Server';
   el.innerHTML = `<div class="serve-attempt-row">
-    <span class="serve-attempt-label">Serve used</span>
-    <div class="serve-attempt-toggle" role="group" aria-label="Serve used for this point">
+    <span class="serve-attempt-label">${esc(serverName)} serve used</span>
+    <div class="serve-attempt-toggle" role="group" aria-label="${esc(serverName)} serve used for this point">
       <button class="serve-attempt-btn${current === 'first' ? ' is-active' : ''}" onclick="setPendingServeAttempt('first')" aria-pressed="${current === 'first'}">1st</button>
       <button class="serve-attempt-btn${current === 'second' ? ' is-active' : ''}" onclick="setPendingServeAttempt('second')" aria-pressed="${current === 'second'}">2nd</button>
     </div>
@@ -3615,9 +4007,10 @@ function renderStats() {
 
   const model = buildStatsModel(m);
   const html = [
+    renderMatchSnapshot(model),
+    renderStatsDataQualityNote(model),
     renderActionBoard(model),
     renderDevelopmentSummary(model),
-    renderStatsDataQualityNote(model),
     renderDiagnosticPattern(model),
     renderStatsDetails(model),
   ].join('');
@@ -4145,6 +4538,40 @@ function showNewMatchModal() {
 function openModal(id)  { qs(`#${id}`).classList.add('open'); }
 function closeModal()   { qsa('.modal-overlay').forEach(m => m.classList.remove('open')); }
 
+function showStatInfoTooltip(encodedLabel, event) {
+  if (event && event.stopPropagation) event.stopPropagation();
+  const label = decodeURIComponent(encodedLabel || '');
+  const info = statInfoFor(label);
+  const tooltip = qs('#statInfoTooltip');
+  const target = event && event.currentTarget ? event.currentTarget : null;
+  if (!info || !tooltip || !target) return;
+
+  tooltip.innerHTML = `<div class="stat-info-tooltip-title">${esc(info.title || label)}</div><div class="stat-info-tooltip-body">${esc(info.body || '')}</div>`;
+  tooltip.classList.add('show');
+
+  const targetRect = target.getBoundingClientRect();
+  const tooltipRect = tooltip.getBoundingClientRect();
+  const viewportWidth = window.innerWidth || 600;
+  const viewportHeight = window.innerHeight || 800;
+  let left = targetRect.left + (targetRect.width / 2) - (tooltipRect.width / 2);
+  let top = targetRect.top - tooltipRect.height - 8;
+
+  left = Math.max(8, Math.min(left, viewportWidth - tooltipRect.width - 8));
+  if (top < 8) top = targetRect.bottom + 8;
+  top = Math.max(8, Math.min(top, viewportHeight - tooltipRect.height - 8));
+
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${top}px`;
+}
+
+function hideStatInfoTooltip() {
+  const tooltip = qs('#statInfoTooltip');
+  if (!tooltip) return;
+  tooltip.classList.remove('show');
+  tooltip.style.left = '';
+  tooltip.style.top = '';
+}
+
 qsa('.modal-overlay').forEach(overlay => {
   overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
 });
@@ -4471,6 +4898,10 @@ function isDoubleFaultPoint(pt) {
   return dptKey(pt) === 'BAD_TECHNICAL.DFL';
 }
 
+function isOpponentDoubleFaultPoint(pt) {
+  return dptKey(pt) === 'NEUTRAL.DFL';
+}
+
 function wonPoints(points) {
   return points.filter(pt => pt.side === 'player');
 }
@@ -4602,6 +5033,7 @@ function buildStatsModel(m) {
   const gs = gameScore(m);
   const g = curGame(m);
   const doubleFaults = servePts.filter(isDoubleFaultPoint).length;
+  const opponentDoubleFaults = returnPts.filter(isOpponentDoubleFaultPoint).length;
   const estimatedServeAttempts = servePts.length + serveSecondPts.length;
   const serveFreePts = servePts.filter(isServeFreePoint);
   const serveDonationPts = servePts.filter(isDonatedPoint);
@@ -4629,6 +5061,62 @@ function buildStatsModel(m) {
   const pressureDoubleFaultPts = pressurePts.filter(isDoubleFaultPoint);
   const pressureTechnicalLost = pressurePts.filter(pt => pt.side === 'opponent' && hasDpt(pt) && pt.dpt.analyticsBucket === 'technical');
   const pressureTacticalLost = pressurePts.filter(pt => pt.side === 'opponent' && hasDpt(pt) && pt.dpt.analyticsBucket === 'tactical');
+  const setSummaries = m.sets.map((s, idx) => {
+    const setGames = gameScoreForSet(s);
+    return {
+      label: `Set ${idx + 1}`,
+      score: s.winner ? setCompletedScoreLabel(m, s) : `${setGames.p}-${setGames.o}`,
+      time: timingLabel(s),
+      winner: s.winner || null,
+      completed: !!s.winner,
+    };
+  });
+  const comparison = {
+    totalPoints: {
+      player: statsPointRecord(all),
+      opponent: statsPointRecordForSide(all, 'opponent'),
+    },
+    firstServeIn: {
+      player: ratioRecord(serveFirstPts.length, knownServeAttemptTotal),
+      opponent: ratioRecord(returnFirstPts.length, knownReturnAttemptTotal),
+    },
+    servicePoints: {
+      player: statsPointRecord(servePts),
+      opponent: statsPointRecordForSide(returnPts, 'opponent'),
+    },
+    returnPoints: {
+      player: statsPointRecord(returnPts),
+      opponent: statsPointRecordForSide(servePts, 'opponent'),
+    },
+    firstServePoints: {
+      player: statsPointRecord(serveFirstPts),
+      opponent: statsPointRecordForSide(returnFirstPts, 'opponent'),
+    },
+    secondServePoints: {
+      player: statsPointRecord(serveSecondPts),
+      opponent: statsPointRecordForSide(returnSecondPts, 'opponent'),
+    },
+    doubleFaults: {
+      player: { count: doubleFaults, rate: ratioRecord(doubleFaults, servePts.length) },
+      opponent: { count: opponentDoubleFaults, rate: ratioRecord(opponentDoubleFaults, returnPts.length) },
+    },
+    breakPointsSaved: {
+      player: statsPointRecord(breakServePts),
+      opponent: statsPointRecordForSide(breakReturnPts, 'opponent'),
+    },
+    breakPointsConverted: {
+      player: statsPointRecord(breakReturnPts),
+      opponent: statsPointRecordForSide(breakServePts, 'opponent'),
+    },
+    quickPoints: {
+      player: statsPointRecord(quickPts),
+      opponent: statsPointRecordForSide(quickPts, 'opponent'),
+    },
+    longPoints: {
+      player: statsPointRecord(longPts),
+      opponent: statsPointRecordForSide(longPts, 'opponent'),
+    },
+  };
 
   const model = {
     version: 2,
@@ -4658,6 +5146,13 @@ function buildStatsModel(m) {
         gameDurationMs: currentDurationMs(g),
       },
     },
+    matchFlow: {
+      setSummaries,
+      longShare: ratioRecord(longPts.length, knownRallyBandTotal),
+      longPoints: statsPointRecord(longPts),
+      pressurePoints: statsPointRecord(pressurePts),
+    },
+    comparison,
     points: {
       all,
       scoreAll,
@@ -4823,8 +5318,16 @@ function buildStatsModel(m) {
 }
 
 function statsPointRecord(points) {
-  const won = points.filter(pt => pt.side === 'player').length;
+  return statsPointRecordForSide(points, 'player');
+}
+
+function statsPointRecordForSide(points, side) {
   const total = points.length;
+  const won = points.filter(pt => pt.side === side).length;
+  return statsRecordFromCounts(won, total);
+}
+
+function statsRecordFromCounts(won, total) {
   return {
     won,
     lost: total - won,
@@ -4941,6 +5444,148 @@ function buildStatsActionCards(model) {
   return cards
     .sort((a, b) => b.priority - a.priority || a.order - b.order)
     .slice(0, 3);
+}
+
+function renderMatchSnapshot(model) {
+  return [
+    renderMatchOverviewCard(model),
+    renderPlayerComparisonCard(model),
+    renderOurPlayerDiagnosticsCard(model),
+  ].join('');
+}
+
+function renderMatchOverviewCard(model) {
+  const m = model.match;
+  const statusText = m.winnerName ? `${m.winnerName} won` : 'In progress';
+  const matchTime = formatDurationHoursMinutes(m.timing.matchDurationMs);
+  const setChips = model.matchFlow.setSummaries.length
+    ? model.matchFlow.setSummaries.map(setSummaryChipHtml).join('')
+    : '<span class="stats-time-chip">No set time yet</span>';
+  const body = `<div class="stats-scoreline">
+    <div>
+      <div class="stats-score-main">${esc(m.player)} <span class="stat-us">${m.setScore.p}</span> - <span class="stat-them">${m.setScore.o}</span> ${esc(m.opponent)}</div>
+      <div class="stats-score-sub">Games ${m.gameScore.p}-${m.gameScore.o} · Points ${esc(m.pointScore.label)}</div>
+    </div>
+    <span class="stats-status-pill">${esc(statusText)}</span>
+  </div>
+  <div class="metric-grid">
+    ${metricRecordTileHtml('Total points', model.summary.totalPoints)}
+    ${metricTextTileHtml('Match time', esc(matchTime), `Set ${esc(m.timing.set)} · Game ${esc(m.timing.game)}`)}
+    ${metricRatioTileHtml('Long-point share', model.matchFlow.longShare, `Record ${recordText(model.matchFlow.longPoints)}`)}
+    ${metricRecordTileHtml('Pressure points', model.matchFlow.pressurePoints)}
+  </div>
+  <div class="stats-detail-heading">Set times</div>
+  <div class="stats-time-chips">${setChips}</div>`;
+
+  return statsCardHtml('Match Snapshot', 'Score, time, points, and rally shape before the coaching deep dive.', body);
+}
+
+function setSummaryChipHtml(summary) {
+  const parts = [`${summary.label} ${summary.score}`];
+  if (summary.time && summary.time !== '—') parts.push(summary.time);
+  if (!summary.completed) parts.push('live');
+  return `<span class="stats-time-chip">${esc(parts.join(' · '))}</span>`;
+}
+
+function renderPlayerComparisonCard(model) {
+  const c = model.comparison;
+  const rows = [
+    comparisonRecordRowHtml('Total points', c.totalPoints.player, c.totalPoints.opponent),
+    comparisonRatioRowHtml('1st serve in', c.firstServeIn.player, c.firstServeIn.opponent),
+    comparisonRecordRowHtml('Serve points won', c.servicePoints.player, c.servicePoints.opponent),
+    comparisonRecordRowHtml('Return points won', c.returnPoints.player, c.returnPoints.opponent),
+    comparisonRecordRowHtml('1st serve won', c.firstServePoints.player, c.firstServePoints.opponent),
+    comparisonRecordRowHtml('2nd serve won', c.secondServePoints.player, c.secondServePoints.opponent),
+    comparisonFaultRowHtml('Double faults', c.doubleFaults.player, c.doubleFaults.opponent),
+    comparisonRecordRowHtml('Break pts saved', c.breakPointsSaved.player, c.breakPointsSaved.opponent),
+    comparisonRecordRowHtml('Break pts converted', c.breakPointsConverted.player, c.breakPointsConverted.opponent),
+    comparisonRecordRowHtml('Quick points', c.quickPoints.player, c.quickPoints.opponent),
+    comparisonRecordRowHtml('Long points', c.longPoints.player, c.longPoints.opponent),
+  ].join('');
+  const playerName = shortName(model.match.player, 'Player');
+  const opponentName = shortName(model.match.opponent, 'Opponent');
+  const body = `<div class="stats-compare">
+    <div class="stats-compare-grid">
+      <div class="stats-compare-head">
+        <span>Stat</span>
+        <span style="text-align:right">${esc(playerName)}</span>
+        <span style="text-align:right">${esc(opponentName)}</span>
+      </div>
+      ${rows}
+    </div>
+  </div>`;
+
+  return statsCardHtml('Player Comparison', 'Only stats with a real opponent equivalent are shown here.', body);
+}
+
+function comparisonRecordRowHtml(label, playerRecord, opponentRecord) {
+  return comparisonRowHtml(
+    label,
+    comparisonRecordValueHtml(playerRecord, 'stat-us'),
+    comparisonRecordValueHtml(opponentRecord, 'stat-them')
+  );
+}
+
+function comparisonRatioRowHtml(label, playerRatio, opponentRatio) {
+  return comparisonRowHtml(
+    label,
+    comparisonRatioValueHtml(playerRatio, 'stat-us'),
+    comparisonRatioValueHtml(opponentRatio, 'stat-them')
+  );
+}
+
+function comparisonFaultRowHtml(label, playerFaults, opponentFaults) {
+  return comparisonRowHtml(
+    label,
+    comparisonCountRateValueHtml(playerFaults, 'stat-us'),
+    comparisonCountRateValueHtml(opponentFaults, 'stat-them')
+  );
+}
+
+function comparisonRowHtml(label, playerHtml, opponentHtml) {
+  return `<div class="stats-compare-row">
+    <span class="stats-compare-label">${statLabelHtml(label)}</span>
+    <span class="stats-compare-value">${playerHtml}</span>
+    <span class="stats-compare-value">${opponentHtml}</span>
+  </div>`;
+}
+
+function comparisonRecordValueHtml(record, cls) {
+  if (!record || record.total === 0) return '—';
+  return `<span class="${cls}">${record.won}/${record.total}</span> <span class="stat-pct">(${pctLabel(record.winPct)})</span>`;
+}
+
+function comparisonRatioValueHtml(ratio, cls) {
+  if (!ratio || ratio.total === 0) return '—';
+  return `<span class="${cls}">${ratio.part}/${ratio.total}</span> <span class="stat-pct">(${pctLabel(ratio.pct)})</span>`;
+}
+
+function comparisonCountRateValueHtml(item, cls) {
+  if (!item || !item.rate || item.rate.total === 0) return '—';
+  return `<span class="${cls}">${item.count}</span> <span class="stat-pct">(${pctLabel(item.rate.pct)})</span>`;
+}
+
+function renderOurPlayerDiagnosticsCard(model) {
+  const s = model.serve;
+  const r = model.returnGame;
+  const strokes = model.strokes;
+  const leak = model.summary.mainDiagnosticLeak;
+  const free = model.freeDonated;
+  const topLeakDetail = leak
+    ? `${leak.count}/${leak.total} ${leak.bucketLabel.toLowerCase()} losses (${leak.pct}%)`
+    : 'No repeated technical/tactical pattern yet';
+  const body = `<div class="metric-grid">
+    ${metricTextTileHtml('Serve', recordHtml(s.points), `${pctLabel(s.doubleFaultRate.pct)} DF/service pts · ${s.doubleFaults} double fault${plural(s.doubleFaults)}`, s.points.winPct)}
+    ${metricTextTileHtml('Return', recordHtml(r.points), `${r.errors.total} return error${plural(r.errors.total)} · ${pctLabel(r.errorRate.pct)} error rate`, r.points.winPct)}
+    ${metricTextTileHtml('FH winner:error', ratioPairText(strokes.fhCleanWinners, strokes.fhTechnicalErrors), `${strokes.fhCleanWinners} clean winners · ${strokes.fhTechnicalErrors} technical errors`)}
+    ${metricTextTileHtml('BH winner:error', ratioPairText(strokes.bhCleanWinners, strokes.bhTechnicalErrors), `${strokes.bhCleanWinners} clean winners · ${strokes.bhTechnicalErrors} technical errors`)}
+    ${metricTextTileHtml('Short points', recordHtml(model.rally.quick), `${model.rally.quick.total} Q point${plural(model.rally.quick.total)} · 0-4 shots`, model.rally.quick.winPct)}
+    ${metricTextTileHtml('Long points', recordHtml(model.rally.long), `${ratioText(model.rally.longShare)} of known Q/L points`, model.rally.long.winPct)}
+    ${metricTextTileHtml('Free vs donated', `${free.totalFree}:${free.donated}`, `${signedNumberText(free.differential)} differential · ${perTenLabel(free.donationsPerTen)} donated`)}
+    ${metricTextTileHtml('Top leak', leak ? codeHtml(leak.code) : '—', topLeakDetail)}
+  </div>`;
+
+  return statsCardHtml('Our Player Diagnostics', 'Player-centric FH/BH and technical/tactical stats stay single-sided unless the app truly tracks an opponent equivalent.', body);
 }
 
 function renderActionBoard(model) {
@@ -5210,7 +5855,7 @@ function metricCountTileHtml(label, count, detail) {
 
 function metricTextTileHtml(label, mainHtml, detail, pct = null) {
   return `<div class="metric-tile">
-    <div class="metric-label">${esc(label)}</div>
+    <div class="metric-label">${statLabelHtml(label)}</div>
     <div class="metric-main">${mainHtml}</div>
     ${detail ? `<div class="metric-sub">${detail}</div>` : ''}
     ${metricBarHtml(pct)}
@@ -5220,6 +5865,22 @@ function metricTextTileHtml(label, mainHtml, detail, pct = null) {
 function metricBarHtml(pct) {
   if (pct === null || pct === undefined) return '';
   return `<div class="metric-bar" aria-hidden="true"><div class="metric-bar-fill" style="width:${clampPct(pct)}%"></div></div>`;
+}
+
+function statInfoFor(label) {
+  const key = String(label || '').trim();
+  return STAT_INFO[key] || null;
+}
+
+function statLabelHtml(label) {
+  return `<span class="stat-info-label"><span>${esc(label)}</span>${statInfoButtonHtml(label)}</span>`;
+}
+
+function statInfoButtonHtml(label) {
+  const info = statInfoFor(label);
+  if (!info) return '';
+  const encoded = encodeURIComponent(label);
+  return `<button type="button" class="stat-info-btn" onmouseenter="showStatInfoTooltip('${encoded}', event)" onmouseleave="hideStatInfoTooltip()" onfocus="showStatInfoTooltip('${encoded}', event)" onblur="hideStatInfoTooltip()" aria-label="How ${esc(label)} is calculated">i</button>`;
 }
 
 function sampleBadgeHtml(quality) {
@@ -5232,7 +5893,7 @@ function statsActionLineHtml(action) {
 }
 
 function detailRowHtml(label, valueHtml) {
-  return `<div class="stat-row"><span>${esc(label)}</span><span>${valueHtml}</span></div>`;
+  return `<div class="stat-row"><span>${statLabelHtml(label)}</span><span>${valueHtml}</span></div>`;
 }
 
 function codeBreakdownHtml(sorted) {
