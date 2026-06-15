@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Tennis Tracker</title>
+  <style>
+    :root {
+      --green: #256d4f;
+      --green-dark: #174734;
+      --red: #b4232c;
+      --blue: #183b66;
+      --blue-soft: #eaf1fb;
+      --amber: #d97706;
+      --gray: #657080;
+      --gray-light: #eef2f7;
+      --line: #d9e0ea;
+      --white: #ffffff;
+      --text: #172033;
+      --shadow: 0 4px 18px rgba(17, 32, 56, 0.12);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      background: var(--gray-light);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    button, input, select, textarea { font: inherit; }
+
+    .app {
+      width: min(760px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 14px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 1.12rem;
+      line-height: 1.1;
+      color: var(--green-dark);
+    }
+
+    .subtitle {
+      margin-top: 3px;
+      color: var(--gray);
+      font-size: 0.82rem;
+      line-height: 1.35;
+    }
+
+    .card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .score-card {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: linear-gradient(135deg, var(--blue), #285986);
+      color: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .match-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 0.88rem;
+      font-weight: 800;
+      opacity: 0.95;
+    }
+
+    .point-score {
+      margin: 10px 0;
+      text-align: center;
+      font-size: clamp(2.35rem, 12vw, 4rem);
+      font-weight: 950;
+      line-height: 1;
+      letter-spacing: 0.02em;
+    }
+
+    .score-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.22);
+    }
+
+    .score-box {
+      text-align: center;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      opacity: 0.9;
+    }
+
+    .score-box strong {
+      display: block;
+      margin-top: 2px;
+      font-size: 1.35rem;
+      letter-spacing: 0;
+    }
+
+    .context-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-height: 28px;
+      margin-top: 10px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 999px;
+      padding: 3px 9px;
+      background: rgba(255, 255, 255, 0.16);
+      color: inherit;
+      font-size: 0.76rem;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .pill-warning {
+      background: #fff3cd;
+      color: #7a4a00;
+    }
+
+    .card-title {
+      margin: 0 0 9px;
+      font-size: 0.94rem;
+      color: var(--blue);
+      font-weight: 900;
+    }
+
+    .help {
+      margin: -3px 0 12px;
+      color: var(--gray);
+      font-size: 0.83rem;
+      line-height: 1.4;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 9px;
+    }
+
+    .grid-stack {
+      display: grid;
+      gap: 9px;
+    }
+
+    .btn {
+      min-height: 48px;
+      border: 0;
+      border-radius: 13px;
+      padding: 10px 12px;
+      color: var(--text);
+      background: #e5ebf3;
+      font-weight: 850;
+      cursor: pointer;
+      text-align: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+    .btn-primary { background: var(--blue); color: var(--white); }
+    .btn-player { background: var(--green); color: var(--white); }
+    .btn-opponent { background: var(--red); color: var(--white); }
+    .btn-long { background: #fff7ed; color: #8a4300; border: 2px solid #fed7aa; }
+    .btn-long.active { background: var(--amber); color: var(--white); border-color: var(--amber); }
+    .btn-choice.active { outline: 4px solid rgba(24, 59, 102, 0.25); }
+    .btn-light { background: var(--blue-soft); color: var(--blue); }
+    .btn-danger { background: var(--red); color: var(--white); }
+    .btn-small { min-height: 38px; padding: 7px 10px; border-radius: 10px; font-size: 0.82rem; }
+
+    .form-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--gray);
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      min-height: 44px;
+      border: 2px solid var(--line);
+      border-radius: 12px;
+      background: var(--white);
+      color: var(--text);
+      padding: 9px 11px;
+      outline: none;
+    }
+
+    textarea { resize: vertical; min-height: 76px; }
+    input:focus, select:focus, textarea:focus { border-color: var(--blue); }
+
+    .section-label {
+      margin: 13px 0 7px;
+      color: var(--gray);
+      font-size: 0.74rem;
+      font-weight: 950;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .last-line {
+      margin-top: 11px;
+      padding: 10px;
+      border-radius: 12px;
+      background: var(--gray-light);
+      color: var(--gray);
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+
+    .event {
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: 0.86rem;
+      line-height: 1.35;
+    }
+
+    .event:last-child { border-bottom: 0; }
+    .event-score { color: var(--gray); font-weight: 900; }
+    .event-main strong { color: var(--text); }
+    .event-meta { margin-top: 2px; color: var(--gray); font-size: 0.78rem; }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 9px;
+    }
+
+    .metric {
+      min-height: 82px;
+      border-radius: 13px;
+      background: var(--gray-light);
+      padding: 11px;
+    }
+
+    .metric-label {
+      color: var(--gray);
+      font-size: 0.72rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .metric-value {
+      margin-top: 7px;
+      font-size: 1.35rem;
+      font-weight: 950;
+      color: var(--blue);
+    }
+
+    .metric-sub {
+      margin-top: 3px;
+      color: var(--gray);
+      font-size: 0.76rem;
+      line-height: 1.3;
+    }
+
+    .match-card {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .match-card:last-child { border-bottom: 0; }
+    .match-name { font-weight: 900; }
+    .match-meta { color: var(--gray); font-size: 0.78rem; margin-top: 2px; }
+    .match-score { color: var(--green-dark); font-weight: 950; }
+
+    .hidden { display: none !important; }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      z-index: 50;
+      transform: translateX(-50%) translateY(80px);
+      max-width: min(92vw, 520px);
+      border-radius: 999px;
+      background: var(--text);
+      color: var(--white);
+      padding: 10px 16px;
+      font-size: 0.84rem;
+      font-weight: 800;
+      opacity: 0;
+      transition: 0.2s ease;
+      pointer-events: none;
+      text-align: center;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.48);
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      width: min(760px, 100%);
+      max-height: 92vh;
+      overflow: auto;
+      border-radius: 18px 18px 0 0;
+      background: var(--white);
+      padding: 16px;
+    }
+
+    .modal h2 {
+      margin: 0 0 10px;
+      font-size: 1.05rem;
+      color: var(--blue);
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 520px) {
+      .app { padding: 10px; }
+      .form-row, .grid-3 { grid-template-columns: 1fr; }
+      .metric-grid { grid-template-columns: 1fr; }
+      .topbar { align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <div class="topbar">
+      <div>
+        <h1 class="title">Simple Tennis Tracker</h1>
+        <div class="subtitle">Beginner mode: score, 4+ shot long points, winners, forced errors, and unforced errors.</div>
+      </div>
+      <button class="btn btn-light btn-small" type="button" onclick="showSetup(true)">New</button>
+    </div>
+
+    <section class="card" id="setupCard">
+      <h2 class="card-title">Start a match</h2>
+      <p class="help">This page is independent from the full tracker and saves its own matches in this browser.</p>
+      <div class="form-grid">
+        <div class="form-row">
+          <div>
+            <label for="playerName">Our player</label>
+            <input id="playerName" type="text" placeholder="Player" autocomplete="off">
+          </div>
+          <div>
+            <label for="opponentName">Opponent</label>
+            <input id="opponentName" type="text" placeholder="Opponent" autocomplete="off">
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label for="matchDate">Date</label>
+            <input id="matchDate" type="date">
+          </div>
+          <div>
+            <label for="firstServer">First server</label>
+            <select id="firstServer">
+              <option value="player">Our player</option>
+              <option value="opponent">Opponent</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" type="button" onclick="createMatch()">Start simple match</button>
+      </div>
+    </section>
+
+    <section id="matchArea" class="hidden">
+      <div class="score-card" aria-live="polite">
+        <div class="match-line">
+          <span id="matchNames">Player vs Opponent</span>
+          <span id="matchStatus">In progress</span>
+        </div>
+        <div class="point-score" id="pointScore">0 - 0</div>
+        <div class="score-grid">
+          <div class="score-box">Games <strong id="gameScore">0 - 0</strong></div>
+          <div class="score-box">Sets <strong id="setScore">0 - 0</strong></div>
+        </div>
+        <div class="context-row" id="scoreContext"></div>
+      </div>
+
+      <section class="card" id="entryCard">
+        <h2 class="card-title">Record the point</h2>
+        <p class="help">Tap Long as soon as the point reaches 4+ shots. Then choose who won and how it ended.</p>
+
+        <div class="section-label">Long point?</div>
+        <div class="grid-2">
+          <button id="longNoBtn" class="btn btn-choice active" type="button" onclick="setPendingLong(false)">No, 0-3 shots</button>
+          <button id="longYesBtn" class="btn btn-long" type="button" onclick="setPendingLong(true)">Yes, 4+ shots</button>
+        </div>
+
+        <div class="section-label">Who won the point?</div>
+        <div class="grid-2">
+          <button id="winnerPlayerBtn" class="btn btn-player btn-choice" type="button" onclick="selectWinner('player')">Player</button>
+          <button id="winnerOpponentBtn" class="btn btn-opponent btn-choice" type="button" onclick="selectWinner('opponent')">Opponent</button>
+        </div>
+
+        <div class="section-label">How did it end?</div>
+        <div class="grid-stack">
+          <button id="outcomeWinner" class="btn btn-primary" type="button" onclick="recordOutcome('winner')" disabled>Winner</button>
+          <button id="outcomeForced" class="btn btn-light" type="button" onclick="recordOutcome('forced_error')" disabled>Forced error</button>
+          <button id="outcomeUnforced" class="btn btn-light" type="button" onclick="recordOutcome('unforced_error')" disabled>Unforced error</button>
+          <button id="outcomeUnknown" class="btn" type="button" onclick="recordOutcome('unknown')" disabled>Not sure</button>
+        </div>
+
+        <div class="last-line" id="lastLine">No points recorded yet.</div>
+        <div class="grid-3" style="margin-top:10px">
+          <button class="btn btn-light" type="button" onclick="undoLast()">Undo</button>
+          <button class="btn btn-light" type="button" onclick="openScoreModal()">Set score</button>
+          <button class="btn btn-light" type="button" onclick="exportCurrentMatch()">Export</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Simple stats</h2>
+        <div class="metric-grid" id="statsGrid"></div>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Point log</h2>
+        <div id="eventLog"></div>
+      </section>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">Saved simple matches</h2>
+      <div class="grid-2" style="margin-bottom:10px">
+        <button class="btn btn-light" type="button" onclick="exportAllMatches()">Export all</button>
+        <button class="btn btn-light" type="button" onclick="chooseImport()">Import</button>
+      </div>
+      <input id="importFile" class="hidden" type="file" accept="application/json,.json" onchange="importMatches(event)">
+      <div id="matchList"></div>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="scoreModal" onclick="modalBackdropClick(event)">
+    <div class="modal">
+      <h2>Set score</h2>
+      <p class="help">Use this if you missed points. It corrects the scoreboard and does not count as a charted point.</p>
+      <div class="form-grid">
+        <div class="form-row">
+          <div>
+            <label for="setPlayerSets">Player sets</label>
+            <input id="setPlayerSets" type="number" min="0" max="2" step="1" oninput="updateScoreModalMode()">
+          </div>
+          <div>
+            <label for="setOpponentSets">Opponent sets</label>
+            <input id="setOpponentSets" type="number" min="0" max="2" step="1" oninput="updateScoreModalMode()">
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label for="setPlayerGames">Player games</label>
+            <input id="setPlayerGames" type="number" min="0" max="6" step="1" oninput="updateScoreModalMode()">
+          </div>
+          <div>
+            <label for="setOpponentGames">Opponent games</label>
+            <input id="setOpponentGames" type="number" min="0" max="6" step="1" oninput="updateScoreModalMode()">
+          </div>
+        </div>
+        <div id="standardPointFields" class="form-row">
+          <div>
+            <label for="setPlayerPoints">Player points</label>
+            <select id="setPlayerPoints">
+              <option value="0">0</option>
+              <option value="1">15</option>
+              <option value="2">30</option>
+              <option value="3">40</option>
+              <option value="4">Ad</option>
+            </select>
+          </div>
+          <div>
+            <label for="setOpponentPoints">Opponent points</label>
+            <select id="setOpponentPoints">
+              <option value="0">0</option>
+              <option value="1">15</option>
+              <option value="2">30</option>
+              <option value="3">40</option>
+              <option value="4">Ad</option>
+            </select>
+          </div>
+        </div>
+        <div id="tiebreakPointFields" class="form-row hidden">
+          <div>
+            <label for="setPlayerTb">Player TB points</label>
+            <input id="setPlayerTb" type="number" min="0" step="1">
+          </div>
+          <div>
+            <label for="setOpponentTb">Opponent TB points</label>
+            <input id="setOpponentTb" type="number" min="0" step="1">
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label for="setNextServer">Server for next point</label>
+            <select id="setNextServer">
+              <option value="player">Our player</option>
+              <option value="opponent">Opponent</option>
+            </select>
+          </div>
+          <div>
+            <label for="setTiebreak">Current game</label>
+            <select id="setTiebreak" onchange="updateScoreModalMode()">
+              <option value="standard">Standard game</option>
+              <option value="tiebreak">Tie-break</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label for="setScoreNote">Note</label>
+          <textarea id="setScoreNote" placeholder="Example: missed two points while checking court change"></textarea>
+        </div>
+        <div class="grid-2">
+          <button class="btn" type="button" onclick="closeScoreModal()">Cancel</button>
+          <button class="btn btn-primary" type="button" onclick="applyScoreCorrection()">Set score</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div class="sr-only" id="liveStatus" aria-live="polite"></div>
+
+  <script>
+    "use strict";
+
+    const STORAGE_KEY = "tennis_simple_tracker_matches_v1";
+    const CURRENT_KEY = "tennis_simple_tracker_current_id";
+    const EXPORT_VERSION = 1;
+    const LONG_THRESHOLD = 4;
+    const POINT_LABELS = ["0", "15", "30", "40"];
+
+    let matches = [];
+    let currentId = null;
+    let pendingWinner = null;
+    let pendingLong = false;
+
+    function byId(id) { return document.getElementById(id); }
+    function clone(value) { return JSON.parse(JSON.stringify(value)); }
+    function nowIso() { return new Date().toISOString(); }
+    function today() { return new Date().toISOString().slice(0, 10); }
+    function sideName(match, side) { return side === "player" ? match.player : match.opponent; }
+    function shortSideName(match, side) { return sideName(match, side).trim().split(/\s+/)[0] || (side === "player" ? "Player" : "Opponent"); }
+    function otherSide(side) { return side === "player" ? "opponent" : "player"; }
+    function isSide(side) { return side === "player" || side === "opponent"; }
+    function safeText(value) { return String(value == null ? "" : value); }
+    function esc(value) {
+      return safeText(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+    function count(value, fallback = 0) {
+      const number = Number(value);
+      return Number.isFinite(number) ? Math.max(0, Math.floor(number)) : fallback;
+    }
+
+    function newScore(firstServer) {
+      const server = isSide(firstServer) ? firstServer : "player";
+      return {
+        playerSets: 0,
+        opponentSets: 0,
+        playerGames: 0,
+        opponentGames: 0,
+        playerPoints: 0,
+        opponentPoints: 0,
+        tiebreak: false,
+        tiebreakTarget: 7,
+        server,
+        initialTiebreakServer: null
+      };
+    }
+
+    function normalizeScore(score, firstServer) {
+      const source = score && typeof score === "object" ? score : newScore(firstServer);
+      const normalized = {
+        playerSets: count(source.playerSets),
+        opponentSets: count(source.opponentSets),
+        playerGames: count(source.playerGames),
+        opponentGames: count(source.opponentGames),
+        playerPoints: count(source.playerPoints),
+        opponentPoints: count(source.opponentPoints),
+        tiebreak: !!source.tiebreak,
+        tiebreakTarget: count(source.tiebreakTarget, 7) || 7,
+        server: isSide(source.server) ? source.server : (isSide(firstServer) ? firstServer : "player"),
+        initialTiebreakServer: isSide(source.initialTiebreakServer) ? source.initialTiebreakServer : null
+      };
+      if (!normalized.tiebreak) normalized.initialTiebreakServer = null;
+      if (normalized.tiebreak && !normalized.initialTiebreakServer) normalized.initialTiebreakServer = normalized.server;
+      return normalized;
+    }
+
+    function normalizeMatch(match) {
+      const source = match && typeof match === "object" ? match : {};
+      const firstServer = isSide(source.firstServer) ? source.firstServer : "player";
+      const rawId = safeText(source.id);
+      const normalized = {
+        id: /^[A-Za-z0-9_-]+$/.test(rawId) ? rawId : makeId("match"),
+        app: "Simple Tennis Tracker",
+        version: EXPORT_VERSION,
+        player: safeText(source.player).trim() || "Player",
+        opponent: safeText(source.opponent).trim() || "Opponent",
+        date: /^\d{4}-\d{2}-\d{2}$/.test(safeText(source.date)) ? source.date : today(),
+        firstServer,
+        bestOfSets: 3,
+        longThreshold: LONG_THRESHOLD,
+        createdAt: safeText(source.createdAt) || nowIso(),
+        updatedAt: safeText(source.updatedAt) || nowIso(),
+        status: source.status === "completed" ? "completed" : "active",
+        winner: isSide(source.winner) ? source.winner : null,
+        score: normalizeScore(source.score, firstServer),
+        events: Array.isArray(source.events) ? source.events.map(normalizeEvent).filter(Boolean) : []
+      };
+      if (normalized.score.playerSets >= setsNeeded() || normalized.score.opponentSets >= setsNeeded()) {
+        normalized.status = "completed";
+        normalized.winner = normalized.score.playerSets >= setsNeeded() ? "player" : "opponent";
+      }
+      if (normalized.status !== "completed") normalized.winner = null;
+      return normalized;
+    }
+
+    function normalizeEvent(event) {
+      if (!event || typeof event !== "object") return null;
+      const type = event.type === "score-correction" ? "score-correction" : "point";
+      const before = normalizeScore(event.before);
+      const after = normalizeScore(event.after);
+      if (type === "score-correction") {
+        return {
+          id: safeText(event.id) || makeId("correction"),
+          type,
+          recordedAt: safeText(event.recordedAt) || nowIso(),
+          before,
+          after,
+          note: safeText(event.note).trim()
+        };
+      }
+      const pointWinner = isSide(event.pointWinner) ? event.pointWinner : "player";
+      const resultType = ["winner", "forced_error", "unforced_error", "unknown"].includes(event.resultType) ? event.resultType : "unknown";
+      return {
+        id: safeText(event.id) || makeId("point"),
+        type,
+        recordedAt: safeText(event.recordedAt) || nowIso(),
+        before,
+        after,
+        pointWinner,
+        resultType,
+        creditedSide: isSide(event.creditedSide) ? event.creditedSide : creditedSideFor(pointWinner, resultType),
+        longPoint: !!event.longPoint,
+        longThreshold: count(event.longThreshold, LONG_THRESHOLD),
+        serverBefore: isSide(event.serverBefore) ? event.serverBefore : currentServer(before)
+      };
+    }
+
+    function makeId(prefix) {
+      return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    function load() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        matches = Array.isArray(parsed) ? parsed.map(normalizeMatch) : [];
+        currentId = localStorage.getItem(CURRENT_KEY) || null;
+        if (currentId && !cur()) currentId = matches.length ? matches[0].id : null;
+      } catch (error) {
+        matches = [];
+        currentId = null;
+      }
+      byId("matchDate").value = today();
+      save();
+      render();
+    }
+
+    function save() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(matches));
+        if (currentId) localStorage.setItem(CURRENT_KEY, currentId);
+        else localStorage.removeItem(CURRENT_KEY);
+      } catch (error) {
+        toast("Could not save in this browser");
+      }
+    }
+
+    function cur() {
+      return matches.find(match => match.id === currentId) || null;
+    }
+
+    function createMatch() {
+      const player = byId("playerName").value.trim() || "Player";
+      const opponent = byId("opponentName").value.trim() || "Opponent";
+      const date = byId("matchDate").value || today();
+      const firstServer = byId("firstServer").value === "opponent" ? "opponent" : "player";
+      const match = normalizeMatch({
+        id: makeId("match"),
+        player,
+        opponent,
+        date,
+        firstServer,
+        score: newScore(firstServer),
+        events: [],
+        createdAt: nowIso(),
+        updatedAt: nowIso()
+      });
+      matches.unshift(match);
+      currentId = match.id;
+      resetPending();
+      save();
+      render();
+      toast("Match started");
+    }
+
+    function showSetup(force) {
+      if (force) {
+        byId("setupCard").classList.remove("hidden");
+        byId("playerName").focus();
+        return;
+      }
+      byId("setupCard").classList.toggle("hidden", !!cur());
+    }
+
+    function loadMatch(id) {
+      currentId = id;
+      resetPending();
+      save();
+      render();
+    }
+
+    function deleteMatch(id) {
+      const match = matches.find(item => item.id === id);
+      if (!match) return;
+      if (!confirm(`Delete ${match.player} vs ${match.opponent}?`)) return;
+      matches = matches.filter(item => item.id !== id);
+      if (currentId === id) currentId = matches.length ? matches[0].id : null;
+      save();
+      render();
+      toast("Match deleted");
+    }
+
+    function resetPending() {
+      pendingWinner = null;
+      pendingLong = false;
+    }
+
+    function setPendingLong(value) {
+      pendingLong = !!value;
+      renderEntryControls();
+    }
+
+    function selectWinner(side) {
+      const match = cur();
+      if (!match || match.status === "completed") return;
+      pendingWinner = isSide(side) ? side : null;
+      renderEntryControls();
+    }
+
+    function recordOutcome(resultType) {
+      const match = cur();
+      if (!match || match.status === "completed") return;
+      if (!pendingWinner) {
+        toast("Choose who won the point first");
+        return;
+      }
+      const type = ["winner", "forced_error", "unforced_error", "unknown"].includes(resultType) ? resultType : "unknown";
+      const before = clone(match.score);
+      const after = clone(match.score);
+      updateScoreAfterPoint(after, pendingWinner);
+      const event = {
+        id: makeId("point"),
+        type: "point",
+        recordedAt: nowIso(),
+        before,
+        after: clone(after),
+        pointWinner: pendingWinner,
+        resultType: type,
+        creditedSide: creditedSideFor(pendingWinner, type),
+        longPoint: pendingLong,
+        longThreshold: LONG_THRESHOLD,
+        serverBefore: currentServer(before)
+      };
+      match.events.push(event);
+      match.score = after;
+      match.updatedAt = nowIso();
+      if (after.playerSets >= setsNeeded() || after.opponentSets >= setsNeeded()) {
+        match.status = "completed";
+        match.winner = after.playerSets >= setsNeeded() ? "player" : "opponent";
+      }
+      resetPending();
+      save();
+      render();
+      toast("Point recorded");
+    }
+
+    function creditedSideFor(pointWinner, resultType) {
+      if (resultType === "winner") return pointWinner;
+      if (resultType === "forced_error" || resultType === "unforced_error") return otherSide(pointWinner);
+      return null;
+    }
+
+    function updateScoreAfterPoint(score, winner) {
+      if (winner === "player") score.playerPoints++;
+      else score.opponentPoints++;
+
+      if (score.tiebreak) {
+        const tbWinner = detectTiebreakWinner(score);
+        if (tbWinner) {
+          completeTiebreakSet(score, tbWinner);
+        } else {
+          score.server = currentServer(score);
+        }
+        return;
+      }
+
+      const gameWinner = detectStandardGameWinner(score);
+      if (gameWinner) completeStandardGame(score, gameWinner);
+    }
+
+    function detectStandardGameWinner(score) {
+      const p = score.playerPoints;
+      const o = score.opponentPoints;
+      if (p >= 4 && p - o >= 2) return "player";
+      if (o >= 4 && o - p >= 2) return "opponent";
+      return null;
+    }
+
+    function detectTiebreakWinner(score) {
+      const target = score.tiebreakTarget || 7;
+      const p = score.playerPoints;
+      const o = score.opponentPoints;
+      if (p >= target && p - o >= 2) return "player";
+      if (o >= target && o - p >= 2) return "opponent";
+      return null;
+    }
+
+    function completeStandardGame(score, winner) {
+      const nextServer = otherSide(score.server);
+      if (winner === "player") score.playerGames++;
+      else score.opponentGames++;
+      score.playerPoints = 0;
+      score.opponentPoints = 0;
+
+      const setWinner = detectStandardSetWinner(score);
+      if (setWinner) {
+        completeStandardSet(score, setWinner, nextServer);
+        return;
+      }
+
+      if (score.playerGames === 6 && score.opponentGames === 6) {
+        score.tiebreak = true;
+        score.tiebreakTarget = 7;
+        score.initialTiebreakServer = nextServer;
+        score.server = nextServer;
+        return;
+      }
+
+      score.server = nextServer;
+    }
+
+    function detectStandardSetWinner(score) {
+      if (score.playerGames >= 6 && score.playerGames - score.opponentGames >= 2) return "player";
+      if (score.opponentGames >= 6 && score.opponentGames - score.playerGames >= 2) return "opponent";
+      return null;
+    }
+
+    function completeStandardSet(score, winner, nextServer) {
+      if (winner === "player") score.playerSets++;
+      else score.opponentSets++;
+      score.playerGames = 0;
+      score.opponentGames = 0;
+      score.playerPoints = 0;
+      score.opponentPoints = 0;
+      score.tiebreak = false;
+      score.initialTiebreakServer = null;
+      score.server = nextServer;
+    }
+
+    function completeTiebreakSet(score, winner) {
+      const nextServer = otherSide(score.initialTiebreakServer || score.server);
+      if (winner === "player") score.playerSets++;
+      else score.opponentSets++;
+      score.playerGames = 0;
+      score.opponentGames = 0;
+      score.playerPoints = 0;
+      score.opponentPoints = 0;
+      score.tiebreak = false;
+      score.initialTiebreakServer = null;
+      score.server = nextServer;
+    }
+
+    function setsNeeded() { return 2; }
+
+    function currentServer(score) {
+      if (!score.tiebreak) return score.server;
+      const initial = score.initialTiebreakServer || score.server;
+      const total = score.playerPoints + score.opponentPoints;
+      if (total === 0) return initial;
+      const block = Math.floor((total - 1) / 2);
+      return block % 2 === 0 ? otherSide(initial) : initial;
+    }
+
+    function inferInitialTiebreakServer(nextServer, totalPoints) {
+      if (totalPoints <= 0) return nextServer;
+      const block = Math.floor((totalPoints - 1) / 2);
+      return block % 2 === 0 ? otherSide(nextServer) : nextServer;
+    }
+
+    function pointScoreLabel(score, match) {
+      if (score.tiebreak) return `TB ${score.playerPoints} - ${score.opponentPoints}`;
+      const p = score.playerPoints;
+      const o = score.opponentPoints;
+      if (p >= 3 && o >= 3) {
+        if (p === o) return "Deuce";
+        return p > o ? `Ad ${shortSideName(match, "player")}` : `Ad ${shortSideName(match, "opponent")}`;
+      }
+      return `${POINT_LABELS[Math.min(p, 3)]} - ${POINT_LABELS[Math.min(o, 3)]}`;
+    }
+
+    function scoreLine(score, key) {
+      return `${score[`player${key}`]} - ${score[`opponent${key}`]}`;
+    }
+
+    function pressureTags(score) {
+      const tags = [];
+      if (!score.tiebreak && score.playerPoints >= 3 && score.opponentPoints >= 3) {
+        tags.push(score.playerPoints === score.opponentPoints ? "Deuce" : "Advantage");
+      }
+      ["player", "opponent"].forEach(side => {
+        if (!wouldWinGame(score, side)) return;
+        if (!score.tiebreak) {
+          tags.push(side === currentServer(score) ? "Game point" : "Break point");
+        }
+        if (wouldWinSet(score, side)) tags.push("Set point");
+        if (wouldWinMatch(score, side)) tags.push("Match point");
+      });
+      return Array.from(new Set(tags));
+    }
+
+    function wouldWinGame(score, side) {
+      const next = clone(score);
+      if (side === "player") next.playerPoints++;
+      else next.opponentPoints++;
+      return next.tiebreak ? detectTiebreakWinner(next) === side : detectStandardGameWinner(next) === side;
+    }
+
+    function wouldWinSet(score, side) {
+      if (!wouldWinGame(score, side)) return false;
+      if (score.tiebreak) return true;
+      const next = clone(score);
+      if (side === "player") next.playerGames++;
+      else next.opponentGames++;
+      return detectStandardSetWinner(next) === side;
+    }
+
+    function wouldWinMatch(score, side) {
+      if (!wouldWinSet(score, side)) return false;
+      const nextSets = score[`${side}Sets`] + 1;
+      return nextSets >= setsNeeded();
+    }
+
+    function undoLast() {
+      const match = cur();
+      if (!match || match.events.length === 0) {
+        toast("Nothing to undo");
+        return;
+      }
+      const removed = match.events.pop();
+      match.score = clone(removed.before);
+      match.status = "active";
+      match.winner = null;
+      match.updatedAt = nowIso();
+      resetPending();
+      save();
+      render();
+      toast("Undone");
+    }
+
+    function openScoreModal() {
+      const match = cur();
+      if (!match) return;
+      const s = match.score;
+      byId("setPlayerSets").value = s.playerSets;
+      byId("setOpponentSets").value = s.opponentSets;
+      byId("setPlayerGames").value = s.playerGames;
+      byId("setOpponentGames").value = s.opponentGames;
+      byId("setTiebreak").value = s.tiebreak ? "tiebreak" : "standard";
+      byId("setPlayerPoints").value = String(Math.min(s.playerPoints, 4));
+      byId("setOpponentPoints").value = String(Math.min(s.opponentPoints, 4));
+      byId("setPlayerTb").value = s.tiebreak ? s.playerPoints : 0;
+      byId("setOpponentTb").value = s.tiebreak ? s.opponentPoints : 0;
+      byId("setNextServer").value = currentServer(s);
+      byId("setScoreNote").value = "";
+      updateScoreModalMode();
+      byId("scoreModal").classList.add("open");
+    }
+
+    function closeScoreModal() {
+      byId("scoreModal").classList.remove("open");
+    }
+
+    function modalBackdropClick(event) {
+      if (event.target === byId("scoreModal")) closeScoreModal();
+    }
+
+    function updateScoreModalMode() {
+      const playerGames = count(byId("setPlayerGames").value);
+      const opponentGames = count(byId("setOpponentGames").value);
+      const forceTiebreak = playerGames === 6 && opponentGames === 6;
+      if (forceTiebreak) byId("setTiebreak").value = "tiebreak";
+      const tiebreak = byId("setTiebreak").value === "tiebreak";
+      byId("standardPointFields").classList.toggle("hidden", tiebreak);
+      byId("tiebreakPointFields").classList.toggle("hidden", !tiebreak);
+    }
+
+    function applyScoreCorrection() {
+      const match = cur();
+      if (!match) return;
+      try {
+        const before = clone(match.score);
+        const target = readScoreCorrectionTarget();
+        const event = {
+          id: makeId("correction"),
+          type: "score-correction",
+          recordedAt: nowIso(),
+          before,
+          after: clone(target),
+          note: byId("setScoreNote").value.trim()
+        };
+        match.events.push(event);
+        match.score = target;
+        if (target.playerSets >= setsNeeded() || target.opponentSets >= setsNeeded()) {
+          match.status = "completed";
+          match.winner = target.playerSets >= setsNeeded() ? "player" : "opponent";
+        } else {
+          match.status = "active";
+          match.winner = null;
+        }
+        match.updatedAt = nowIso();
+        resetPending();
+        save();
+        closeScoreModal();
+        render();
+        toast("Score set");
+      } catch (error) {
+        toast(error.message || "Invalid score");
+      }
+    }
+
+    function readScoreCorrectionTarget() {
+      const playerSets = count(byId("setPlayerSets").value);
+      const opponentSets = count(byId("setOpponentSets").value);
+      if (playerSets >= setsNeeded() && opponentSets >= setsNeeded()) {
+        throw new Error("Only one player can have won the match");
+      }
+
+      const playerGames = count(byId("setPlayerGames").value);
+      const opponentGames = count(byId("setOpponentGames").value);
+      if (playerGames > 6 || opponentGames > 6) throw new Error("Games must be 0 to 6 in simple mode");
+      if (setWouldAlreadyBeOver(playerGames, opponentGames)) {
+        throw new Error("That game score is a completed set. Add it to sets instead");
+      }
+
+      const tiebreak = byId("setTiebreak").value === "tiebreak";
+      if (tiebreak && (playerGames !== 6 || opponentGames !== 6)) {
+        throw new Error("Tie-break is only available at 6-6");
+      }
+
+      let playerPoints;
+      let opponentPoints;
+      if (tiebreak) {
+        playerPoints = count(byId("setPlayerTb").value);
+        opponentPoints = count(byId("setOpponentTb").value);
+        const target = { playerPoints, opponentPoints, tiebreak: true, tiebreakTarget: 7 };
+        if (detectTiebreakWinner(target)) throw new Error("Current tie-break points must be in progress");
+      } else {
+        playerPoints = count(byId("setPlayerPoints").value);
+        opponentPoints = count(byId("setOpponentPoints").value);
+        if (playerPoints === 4 && opponentPoints !== 3) throw new Error("Advantage requires opponent on 40");
+        if (opponentPoints === 4 && playerPoints !== 3) throw new Error("Advantage requires player on 40");
+        if (playerPoints === 4 && opponentPoints === 4) throw new Error("Only one player can have advantage");
+      }
+
+      const server = byId("setNextServer").value === "opponent" ? "opponent" : "player";
+      const totalTbPoints = playerPoints + opponentPoints;
+      return {
+        playerSets,
+        opponentSets,
+        playerGames,
+        opponentGames,
+        playerPoints,
+        opponentPoints,
+        tiebreak,
+        tiebreakTarget: 7,
+        server,
+        initialTiebreakServer: tiebreak ? inferInitialTiebreakServer(server, totalTbPoints) : null
+      };
+    }
+
+    function setWouldAlreadyBeOver(playerGames, opponentGames) {
+      if (playerGames >= 6 && playerGames - opponentGames >= 2) return true;
+      if (opponentGames >= 6 && opponentGames - playerGames >= 2) return true;
+      return false;
+    }
+
+    function render() {
+      const match = cur();
+      showSetup(false);
+      byId("matchArea").classList.toggle("hidden", !match);
+      if (match) renderMatch(match);
+      renderMatchList();
+    }
+
+    function renderMatch(match) {
+      const s = match.score;
+      byId("matchNames").textContent = `${match.player} vs ${match.opponent}`;
+      byId("matchStatus").textContent = match.status === "completed" ? `${sideName(match, match.winner)} won` : "In progress";
+      byId("pointScore").textContent = pointScoreLabel(s, match);
+      byId("gameScore").textContent = `${s.playerGames} - ${s.opponentGames}`;
+      byId("setScore").textContent = `${s.playerSets} - ${s.opponentSets}`;
+
+      const context = [`Serving: ${shortSideName(match, currentServer(s))}`];
+      pressureTags(s).forEach(tag => context.push(tag));
+      if (s.tiebreak) context.push("Tie-break");
+      byId("scoreContext").innerHTML = context.map((item, index) => `<span class="pill${index > 0 ? " pill-warning" : ""}">${esc(item)}</span>`).join("");
+
+      byId("entryCard").classList.toggle("hidden", match.status === "completed");
+      renderEntryControls();
+      renderLastLine(match);
+      renderStats(match);
+      renderEvents(match);
+    }
+
+    function renderEntryControls() {
+      const match = cur();
+      const disabled = !match || match.status === "completed";
+      byId("longNoBtn").classList.toggle("active", !pendingLong);
+      byId("longYesBtn").classList.toggle("active", pendingLong);
+      byId("winnerPlayerBtn").textContent = match ? shortSideName(match, "player") : "Player";
+      byId("winnerOpponentBtn").textContent = match ? shortSideName(match, "opponent") : "Opponent";
+      byId("winnerPlayerBtn").classList.toggle("active", pendingWinner === "player");
+      byId("winnerOpponentBtn").classList.toggle("active", pendingWinner === "opponent");
+      ["outcomeWinner", "outcomeForced", "outcomeUnforced", "outcomeUnknown"].forEach(id => {
+        byId(id).disabled = disabled || !pendingWinner;
+      });
+      if (match && pendingWinner) {
+        const loser = otherSide(pendingWinner);
+        byId("outcomeWinner").textContent = `${shortSideName(match, pendingWinner)} winner`;
+        byId("outcomeForced").textContent = `${shortSideName(match, loser)} forced error`;
+        byId("outcomeUnforced").textContent = `${shortSideName(match, loser)} unforced error`;
+      } else {
+        byId("outcomeWinner").textContent = "Winner";
+        byId("outcomeForced").textContent = "Forced error";
+        byId("outcomeUnforced").textContent = "Unforced error";
+      }
+    }
+
+    function renderLastLine(match) {
+      const last = [...match.events].reverse().find(Boolean);
+      if (!last) {
+        byId("lastLine").textContent = "No points recorded yet.";
+        return;
+      }
+      byId("lastLine").textContent = last.type === "point"
+        ? `Last: ${pointEventSummary(match, last)}.`
+        : `Last: score corrected to ${scoreSummary(last.after)}${last.note ? ` (${last.note})` : ""}.`;
+    }
+
+    function renderStats(match) {
+      const points = pointEvents(match);
+      const total = points.length;
+      const playerWon = points.filter(point => point.pointWinner === "player").length;
+      const opponentWon = total - playerWon;
+      const longPoints = points.filter(point => point.longPoint);
+      const playerLongWon = longPoints.filter(point => point.pointWinner === "player").length;
+      const winnerPlayer = points.filter(point => point.resultType === "winner" && point.creditedSide === "player").length;
+      const winnerOpponent = points.filter(point => point.resultType === "winner" && point.creditedSide === "opponent").length;
+      const forcedPlayer = points.filter(point => point.resultType === "forced_error" && point.creditedSide === "player").length;
+      const forcedOpponent = points.filter(point => point.resultType === "forced_error" && point.creditedSide === "opponent").length;
+      const unforcedPlayer = points.filter(point => point.resultType === "unforced_error" && point.creditedSide === "player").length;
+      const unforcedOpponent = points.filter(point => point.resultType === "unforced_error" && point.creditedSide === "opponent").length;
+      const unknown = points.filter(point => point.resultType === "unknown").length;
+
+      byId("statsGrid").innerHTML = [
+        metric("Charted points", `${playerWon} - ${opponentWon}`, `${match.player} won ${pct(playerWon, total)} of ${total}`),
+        metric("Long points", `${playerLongWon} - ${longPoints.length - playerLongWon}`, `${longPoints.length} reached ${LONG_THRESHOLD}+ shots`),
+        metric("Winners hit", `${winnerPlayer} - ${winnerOpponent}`, `${match.player} - ${match.opponent}`),
+        metric("Forced errors", `${forcedPlayer} - ${forcedOpponent}`, "Errors committed under pressure"),
+        metric("Unforced errors", `${unforcedPlayer} - ${unforcedOpponent}`, "Makeable-ball misses"),
+        metric("Not sure", String(unknown), "Winner known, ending unclear")
+      ].join("");
+    }
+
+    function metric(label, value, sub) {
+      return `<div class="metric"><div class="metric-label">${esc(label)}</div><div class="metric-value">${esc(value)}</div><div class="metric-sub">${esc(sub)}</div></div>`;
+    }
+
+    function pct(part, total) {
+      return total > 0 ? `${Math.round((part / total) * 100)}%` : "0%";
+    }
+
+    function pointEvents(match) {
+      return match.events.filter(event => event.type === "point");
+    }
+
+    function renderEvents(match) {
+      if (match.events.length === 0) {
+        byId("eventLog").innerHTML = '<p class="help">No point log yet.</p>';
+        return;
+      }
+      byId("eventLog").innerHTML = match.events.map(event => {
+        if (event.type === "score-correction") {
+          return `<div class="event"><div class="event-score">Set</div><div class="event-main"><strong>Score corrected</strong><div class="event-meta">Now ${esc(scoreSummary(event.after))}${event.note ? ` - ${esc(event.note)}` : ""}</div></div></div>`;
+        }
+        return `<div class="event"><div class="event-score">${esc(pointScoreLabel(event.before, match))}</div><div class="event-main"><strong>${esc(pointEventSummary(match, event))}</strong><div class="event-meta">Server ${esc(shortSideName(match, event.serverBefore))} - ${event.longPoint ? `${LONG_THRESHOLD}+ shots` : "0-3 shots"}</div></div></div>`;
+      }).join("");
+    }
+
+    function pointEventSummary(match, event) {
+      const winner = shortSideName(match, event.pointWinner);
+      if (event.resultType === "winner") return `${winner} won with a winner`;
+      if (event.resultType === "forced_error") return `${winner} won on ${shortSideName(match, event.creditedSide)} forced error`;
+      if (event.resultType === "unforced_error") return `${winner} won on ${shortSideName(match, event.creditedSide)} unforced error`;
+      return `${winner} won, ending not sure`;
+    }
+
+    function scoreSummary(score) {
+      return `sets ${score.playerSets}-${score.opponentSets}, games ${score.playerGames}-${score.opponentGames}, ${score.tiebreak ? `TB ${score.playerPoints}-${score.opponentPoints}` : `${POINT_LABELS[Math.min(score.playerPoints, 3)] || score.playerPoints}-${POINT_LABELS[Math.min(score.opponentPoints, 3)] || score.opponentPoints}`}`;
+    }
+
+    function renderMatchList() {
+      const el = byId("matchList");
+      if (matches.length === 0) {
+        el.innerHTML = '<p class="help">No saved simple matches yet.</p>';
+        return;
+      }
+      el.innerHTML = matches.map(match => {
+        const active = match.id === currentId ? " (active)" : "";
+        return `<div class="match-card">
+          <div>
+            <div class="match-name">${esc(match.player)} vs ${esc(match.opponent)}${active}</div>
+            <div class="match-meta">${esc(match.date)} - ${esc(match.status)} - ${pointEvents(match).length} charted points</div>
+          </div>
+          <div style="text-align:right">
+            <div class="match-score">${match.score.playerSets}-${match.score.opponentSets}</div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button class="btn btn-small btn-light" type="button" onclick="loadMatch('${esc(match.id)}')">Open</button>
+              <button class="btn btn-small btn-danger" type="button" onclick="deleteMatch('${esc(match.id)}')">Delete</button>
+            </div>
+          </div>
+        </div>`;
+      }).join("");
+    }
+
+    function exportCurrentMatch() {
+      const match = cur();
+      if (!match) {
+        toast("No active match to export");
+        return;
+      }
+      downloadJson(exportPayload([match]), `simple-tennis-${slug(match.player)}-vs-${slug(match.opponent)}-${match.date}.json`);
+    }
+
+    function exportAllMatches() {
+      if (matches.length === 0) {
+        toast("No matches to export");
+        return;
+      }
+      downloadJson(exportPayload(matches), `simple-tennis-matches-${today()}.json`);
+    }
+
+    function exportPayload(matchList) {
+      return {
+        app: "Simple Tennis Tracker",
+        version: EXPORT_VERSION,
+        exportedAt: nowIso(),
+        longPointDefinition: `${LONG_THRESHOLD}+ shots`,
+        matches: matchList
+      };
+    }
+
+    function downloadJson(payload, filename) {
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast("Export downloaded");
+    }
+
+    function chooseImport() {
+      byId("importFile").value = "";
+      byId("importFile").click();
+    }
+
+    function importMatches(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const payload = JSON.parse(reader.result);
+          const imported = parseImportPayload(payload);
+          imported.forEach(match => {
+            const existing = matches.findIndex(item => item.id === match.id);
+            if (existing >= 0) matches[existing] = match;
+            else matches.unshift(match);
+          });
+          if (!currentId && matches.length) currentId = matches[0].id;
+          save();
+          render();
+          toast(`Imported ${imported.length} match${imported.length === 1 ? "" : "es"}`);
+        } catch (error) {
+          toast(error.message || "Import failed");
+        }
+      };
+      reader.onerror = () => toast("Could not read file");
+      reader.readAsText(file);
+    }
+
+    function parseImportPayload(payload) {
+      if (!payload || typeof payload !== "object") throw new Error("Unsupported import file");
+      const list = Array.isArray(payload.matches) ? payload.matches : [];
+      if (payload.app !== "Simple Tennis Tracker" || payload.version !== EXPORT_VERSION) {
+        throw new Error("Import a Simple Tennis Tracker export");
+      }
+      const imported = list.map(normalizeMatch);
+      if (imported.length === 0) throw new Error("No matches found in import");
+      return imported;
+    }
+
+    function slug(value) {
+      return safeText(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "match";
+    }
+
+    function toast(message) {
+      const el = byId("toast");
+      el.textContent = message;
+      el.classList.add("show");
+      byId("liveStatus").textContent = message;
+      clearTimeout(toast.timer);
+      toast.timer = setTimeout(() => el.classList.remove("show"), 1800);
+    }
+
+    window.addEventListener("DOMContentLoaded", load);
+  </script>
+</body>
+</html>
